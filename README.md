@@ -99,8 +99,9 @@ Linux.
 ## Platform support
 
 - **macOS** is the development target and the only platform the app has been used on.
-- **Linux** builds and passes CI; GPUI needs the X11/Wayland, ALSA, and Vulkan packages the CI
-  job installs.
+- **Linux** is in the CI matrix. GPUI's Linux stack needs the Mesa, Vulkan, GBM and X11 dev
+  libraries that [ci.yml](.github/workflows/ci.yml) installs; the badge at the top of this file
+  is the current verdict, not this sentence.
 - **Windows** is not supported yet — see ROADMAP M5.
 
 ## Documentation

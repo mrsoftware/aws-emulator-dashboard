@@ -184,15 +184,23 @@ operations in the same services.
 - 🧭 **Diagnostics.** `tracing_subscriber` writes to stdout with an env filter
   ([src/main.rs:19](src/main.rs#L19)) and nothing else, so a bug report has no artifact. Needs a
   log file under the config dir and a "reveal diagnostics" affordance.
-- ✅ **Linux CI was red, and still is thin.** Both pushes so far failed `cargo clippy
-  --all-targets` on `ubuntu-latest` with `E0433: cannot find AppleTextSystem in gpui_apple` —
-  the render module reached for CoreText on a platform that has no such crate, and
+- 🚧 **Linux CI was red twice, for two different reasons.** Both pushes so far failed
+  `cargo clippy --all-targets` on `ubuntu-latest` with `E0433: cannot find AppleTextSystem in
+  gpui_apple` — the render module reached for CoreText on a platform that has no such crate, and
   `gpui-pre-apple` was an unconditional dev-dependency. Fixed by gating the module to macOS
   ([src/main.rs:7](src/main.rs#L7)) and the crate to the same target
-  ([Cargo.toml:46](Cargo.toml#L46)). Nothing caught it earlier because macOS CI was green and
-  the local gates are macOS-only. 🧭 What is still missing: those 11 pages now render on one
-  OS only, so the layout proof has a single point of failure until a headless text system that
-  works on Linux is wired in.
+  ([Cargo.toml:46](Cargo.toml#L46)). That exposed the next layer: `cargo test` then died in the
+  **link step**, because the test binary pulls GPUI's Linux wgpu stack (`wgpu`, `khronos-egl`,
+  `glutin_wgl_sys`, `ash`) and the workflow installed `libvulkan1` — runtime only, no
+  `libvulkan.so` for the linker — and no GL/EGL/GBM dev packages at all. rustc's diagnostic for a
+  failed link is one enormous `cc` command line that Actions drops from the log, so the workflow
+  now re-runs the link verbosely on failure
+  ([.github/workflows/ci.yml:57](.github/workflows/ci.yml#L57)) and installs
+  `libvulkan-dev libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libgbm-dev libdrm-dev` plus
+  the X11 dev libraries. Nothing caught any of this earlier because macOS CI was green and every
+  local gate runs on macOS. 🧭 Still owed: those 11 pages render on one OS only, so the layout
+  proof has a single point of failure until a headless text system that works on Linux is wired
+  in.
 - 🧭 **CI does not test the thing it ships.** [ci.yml](.github/workflows/ci.yml) runs
   fmt/clippy/build/test on macOS and Linux, but the 25 `#[ignore]`d live tests never run there
   because no job starts an emulator container. Either add a service-container job or state in

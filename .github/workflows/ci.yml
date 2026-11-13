@@ -31,8 +31,11 @@ jobs:
           sudo apt-get install -y \
             gcc g++ pkg-config make cmake clang lld \
             libasound2-dev libfontconfig-dev libglib2.0-dev libssl-dev \
-            libva-dev libvulkan1 libwayland-dev libx11-xcb-dev \
-            libxkbcommon-x11-dev libzstd-dev
+            libva-dev libwayland-dev libx11-xcb-dev \
+            libxkbcommon-x11-dev libzstd-dev \
+            libvulkan-dev libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libgbm-dev libdrm-dev libx11-dev libxcursor-dev libxi-dev \
+            libxrandr-dev libxss-dev libxxf86vm-dev
 
       - name: Install Metal toolchain
         if: runner.os == 'macOS'
@@ -48,4 +51,7 @@ jobs:
         run: cargo build
 
       - name: Test
-        run: cargo test
+        # The link step is where a missing system library shows up, and rustc's diagnostic for
+        # it is one enormous `cc` command line that Actions drops. Re-running the link verbosely
+        # and printing the tail keeps the next red run self-explanatory.
+        run: cargo test || { cargo test --no-run -v 2>&1 | tail -40; exit 1; }

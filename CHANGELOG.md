@@ -8,11 +8,23 @@ Notable changes to the AWS Emulator Dashboard. The format follows
 
 ### Fixed
 
-- **Linux CI is no longer red.** Both pushes so far failed `cargo clippy --all-targets` on
-  `ubuntu-latest` with `E0433: cannot find AppleTextSystem in gpui_apple`: the headless render
-  module reached for CoreText on a platform that has no such crate. The module is now gated to
-  macOS and `gpui-pre-apple` is a macOS-only dev-dependency. The 11 page-screenshot tests run on
-  macOS only; the logic tests still run on both.
+- **Linux CI is no longer red at the lint step.** Both pushes so far failed
+  `cargo clippy --all-targets` on `ubuntu-latest` with `E0433: cannot find AppleTextSystem in
+  gpui_apple`: the headless render module reached for CoreText on a platform that has no such
+  crate. The module is now gated to macOS and `gpui-pre-apple` is a macOS-only dev-dependency.
+  The 11 page-screenshot tests run on macOS only; the logic tests still run on both.
+- **Linux CI no longer dies in the link step.** Once clippy passed, `cargo test` failed to link
+  the test binary: it pulls GPUI's Linux wgpu stack, and the workflow installed `libvulkan1`
+  (runtime, no linker symlink) and no GL/EGL/GBM dev packages. The workflow now installs
+  `libvulkan-dev`, `libgl1-mesa-dev`, `libegl1-mesa-dev`, `libgles2-mesa-dev`, `libgbm-dev`,
+  `libdrm-dev` and the X11 dev libraries, and re-runs the link verbosely on failure so the next
+  red run prints what is actually missing.
+
+### Verification status
+
+The Linux fixes above are pushed but not yet proven by a green run — watch
+[CI](https://github.com/mrsoftware/aws-emulator-dashboard/actions/workflows/ci.yml) before
+repeating the claim that Linux tests pass. macOS has been green throughout.
 
 ## [0.1.0] — 2026-11-13
 
