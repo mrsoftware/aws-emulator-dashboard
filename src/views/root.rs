@@ -9,6 +9,7 @@ use crate::views::detail;
 use crate::views::theme;
 use crate::views::traffic_log;
 use anyhow::{Result, bail};
+use gpui_kit::assets::IconName;
 use gpui_kit::{
     AnyElement, AsyncApp, Context, Entity, FontWeight, ScrollHandle, SharedString, TestSupportExt,
     Window, actions, div, prelude::*, px, rgb,
@@ -348,33 +349,128 @@ impl Render for RootView {
                 Self::refresh_resources(&this.state, cx);
             }))
             .flex()
-            .flex_row()
+            .flex_col()
             .size_full()
             .bg(rgb(theme::PAGE))
             .text_color(rgb(theme::TEXT))
-            .child(sidebar(&state, &self.nav_scroll, cx))
+            .text_size(px(13.0))
+            .font_family(theme::UI_FONT)
+            .child(topbar(&state))
             .child(
                 div()
                     .flex_1()
-                    .h_full()
+                    .min_h(px(0.0))
                     .flex()
-                    .flex_col()
-                    // The body is bounded by what the header leaves, not by the window.
-                    // Measured with `.size_full()` here it took the full height, so nothing
-                    // ever overflowed and no page could scroll.
-                    .overflow_hidden()
-                    .child(header(&state, cx))
+                    .flex_row()
+                    .child(sidebar(&state, &self.nav_scroll, cx))
                     .child(
                         div()
-                            .id("page-scroll")
                             .flex_1()
-                            .overflow_y_scroll()
-                            .track_scroll(&self.page_scroll)
-                            .p_5()
-                            .child(page_body(&state, cx)),
+                            .h_full()
+                            .flex()
+                            .flex_col()
+                            // The body is bounded by what the header leaves, not by the window.
+                            // Measured with `.size_full()` here it took the full height, so nothing
+                            // ever overflowed and no page could scroll.
+                            .overflow_hidden()
+                            .child(header(&state, cx))
+                            .child(
+                                div()
+                                    .id("page-scroll")
+                                    .flex_1()
+                                    .overflow_y_scroll()
+                                    .track_scroll(&self.page_scroll)
+                                    .p_5()
+                                    .child(page_body(&state, cx)),
+                            ),
                     ),
             )
     }
+}
+
+/// The topbar strip the design draws across the whole console: the brand mark, and on the
+/// right the region the SDK is pointed at. The design's global search, bell and avatar
+/// wait for a working source — an empty search box or an empty bell would be a lie.
+fn topbar(state: &AppState) -> AnyElement {
+    div()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap_4()
+        .h(px(56.0))
+        .px_4()
+        .bg(rgb(theme::SIDEBAR))
+        .border_b_1()
+        .border_color(rgb(theme::BORDER))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap_2p5()
+                .child(
+                    div()
+                        .size(px(28.0))
+                        .rounded_lg()
+                        .bg(rgb(theme::ACCENT))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            div()
+                                .text_size(px(15.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(rgb(theme::ON_ACCENT))
+                                .child("S"),
+                        ),
+                )
+                .child(
+                    div()
+                        .text_size(px(14.0))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child("Stratus Console"),
+                ),
+        )
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap_2()
+                .rounded_md()
+                .border_1()
+                .border_color(rgb(theme::BORDER))
+                .px_2p5()
+                .py_1p5()
+                .child(theme::icon(
+                    gpui_kit::assets::IconName::Globe,
+                    14.0,
+                    theme::INFO,
+                ))
+                .child(
+                    div()
+                        .font_family(theme::MONO_FONT)
+                        .text_size(px(12.0))
+                        .child(REGION.to_string()),
+                ),
+        )
+        .child(
+            div()
+                .ml_auto()
+                .flex()
+                .items_center()
+                .gap_2()
+                .text_size(px(11.0))
+                .font_family(theme::MONO_FONT)
+                .text_color(rgb(theme::TEXT_SECONDARY))
+                .child(format!(
+                    "{} services · account 0000-0000-0000",
+                    crate::catalog::counts().0
+                )),
+        )
+        .when(
+            matches!(state.connection, ConnectionState::Connected(_)),
+            |d| d.child(theme::dot(theme::OK)),
+        )
+        .into_any()
 }
 
 /// The page for the route in `selected_service`, rendered inside the body's scroll container.
@@ -512,44 +608,28 @@ fn primary_action(state: &AppState, cx: &mut Context<RootView>) -> Option<AnyEle
     ))
 }
 
-/// The five routes the console mockup leads the sidebar with. `lambda` is not served by this
-/// build; it is here because the mockup shows it, and its page says so rather than pretending.
-const FAVORITES: [(&str, &str); 5] = [
-    ("overview", "Dashboard"),
-    ("instances", "Instances"),
-    ("s3", "S3 Buckets"),
-    ("lambda", "Lambda"),
-    ("rds", "RDS"),
+/// The routes the console mockup leads the sidebar with, with their lucide marks.
+/// `lambda` is not served by this build; it is here because the mockup shows it, and its
+/// page says so rather than pretending.
+const FAVORITES: [(&str, &str, IconName); 5] = [
+    ("overview", "Dashboard", IconName::LayoutDashboard),
+    ("instances", "Instances", IconName::Server),
+    ("s3", "S3 Buckets", IconName::HardDrive),
+    ("lambda", "Lambda", IconName::Zap),
+    ("rds", "RDS", IconName::Database),
 ];
 
 fn sidebar(state: &AppState, nav_scroll: &ScrollHandle, cx: &mut Context<RootView>) -> AnyElement {
     let selected = state.selected_service.as_str();
     let groups = crate::catalog::browse("", Sort::Name);
     div()
-        .w(px(260.0))
+        .w(px(240.0))
         .h_full()
         .flex()
         .flex_col()
         .bg(rgb(theme::SIDEBAR))
         .border_r_1()
-        .border_color(rgb(theme::RAISED))
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_1()
-                .p_4()
-                .child(
-                    div()
-                        .text_lg()
-                        .font_weight(FontWeight::BOLD)
-                        .child("AWS Console"),
-                )
-                .child(theme::muted(format!(
-                    "{} services · region {REGION}",
-                    crate::catalog::counts().0
-                ))),
-        )
+        .border_color(rgb(theme::BORDER))
         .child(
             div()
                 .id("nav-scroll")
@@ -558,25 +638,49 @@ fn sidebar(state: &AppState, nav_scroll: &ScrollHandle, cx: &mut Context<RootVie
                 .track_scroll(nav_scroll)
                 .flex()
                 .flex_col()
-                .gap_1()
-                .px_3()
+                .gap_0p5()
+                .pt_3()
+                .px_2p5()
                 .pb_4()
-                .child(theme::section_label("FAVORITES"))
-                .children(
-                    FAVORITES
-                        .iter()
-                        .map(|(key, label)| nav(key, label, nav_count(state, key), selected, cx)),
+                .child(
+                    div()
+                        .px_2p5()
+                        .pb_1p5()
+                        .child(theme::section_label("FAVORITES")),
                 )
-                .child(theme::section_label("EMULATOR"))
-                .child(nav("control", "Emulator control", None, selected, cx))
+                .children(FAVORITES.iter().map(|(key, label, icon)| {
+                    nav(key, label, *icon, nav_count(state, key), selected, cx)
+                }))
+                .child(
+                    div()
+                        .px_2p5()
+                        .pt_3()
+                        .pb_1p5()
+                        .child(theme::section_label("EMULATOR")),
+                )
+                .child(nav(
+                    "control",
+                    "Emulator control",
+                    IconName::Settings,
+                    None,
+                    selected,
+                    cx,
+                ))
                 .child(nav(
                     "traffic",
                     "Traffic",
+                    IconName::Activity,
                     Some(state.traffic.len()),
                     selected,
                     cx,
                 ))
-                .child(theme::section_label("ALL SERVICES"))
+                .child(
+                    div()
+                        .px_2p5()
+                        .pt_3()
+                        .pb_1p5()
+                        .child(theme::section_label("ALL SERVICES")),
+                )
                 .children(
                     groups
                         .iter()
@@ -606,6 +710,7 @@ fn nav_count(state: &AppState, key: &str) -> Option<usize> {
 fn nav(
     key: &str,
     label: &str,
+    icon: IconName,
     count: Option<usize>,
     selected: &str,
     cx: &mut Context<RootView>,
@@ -613,28 +718,21 @@ fn nav(
     let key = key.to_string();
     theme::nav_row(
         key.clone(),
-        monogram(label),
+        theme::icon(
+            icon,
+            16.0,
+            if selected == key.as_str() {
+                theme::ACCENT
+            } else {
+                theme::FAINT
+            },
+        ),
         label.to_string(),
         count,
         selected == key.as_str(),
         cx,
         move |s, cx| s.open_page(&key, cx),
     )
-}
-
-/// The two-letter tile the mockup's icons would occupy. The headless renderer has no icon
-/// atlas registered, so the monogram is what a screenshot can actually verify.
-fn monogram(title: &str) -> String {
-    let mut out: String = title
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .take(2)
-        .collect();
-    if out.is_empty() {
-        out.push('?');
-    }
-    out.make_ascii_uppercase();
-    out
 }
 
 fn group_rows(
@@ -671,6 +769,7 @@ fn group_rows(
             nav(
                 key,
                 &label,
+                theme::group_icon(&group.name),
                 Some(state.service(key).items.len()),
                 selected,
                 cx,
@@ -714,23 +813,28 @@ fn group_header(
         .flex()
         .items_center()
         .gap_2()
-        .px_2()
-        .py_1()
+        .px_2p5()
+        .py_1p5()
         .rounded_md()
         .cursor_pointer()
         .bg(rgb(if open { theme::RAISED } else { theme::SIDEBAR }))
-        .child(
-            div()
-                .w(px(14.0))
-                .text_color(rgb(theme::FAINT))
-                .child(if open { "v" } else { ">" }),
-        )
+        .child(theme::icon(
+            if open {
+                IconName::ChevronDown
+            } else {
+                IconName::ChevronRight
+            },
+            12.0,
+            theme::FAINT,
+        ))
+        .child(theme::icon(theme::group_icon(name), 15.0, theme::FAINT))
         .child(div().flex_1().child(name_owned.clone()))
         .when(manageable, |d| d.child(theme::dot(theme::OK)))
         .child(
             div()
-                .text_xs()
-                .text_color(rgb(theme::MUTED))
+                .font_family(theme::MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(theme::FAINT))
                 .child(total.to_string()),
         )
         .on_click(cx.listener(move |this, _, _, cx| {

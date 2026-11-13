@@ -7,7 +7,7 @@ use crate::views::root::RootView;
 use crate::views::theme;
 use gpui_kit::{
     AnyElement, AsyncApp, Context, Div, Entity, Focusable, FontWeight, PathPromptOptions,
-    SharedString, Window, div, prelude::*, px, rgb,
+    SharedString, Stateful, Window, div, prelude::*, px, rgb, rgba,
 };
 use std::future::Future;
 
@@ -32,6 +32,9 @@ const MESSAGE_COLUMNS: &[(Option<f32>, &str)] = &[
 /// The widths of the child table: an access key, a subscription, a stream, a shard.
 const CHILD_COLUMNS: &[(Option<f32>, &str)] =
     &[(None, "NAME"), (Some(260.0), "DETAILS"), (Some(90.0), "")];
+
+/// The dimmed page behind an open dialog: the page colour at ~70% opacity.
+const BACKDROP: u32 = (theme::PAGE << 8) | 0xB3;
 
 #[derive(Clone)]
 enum DetailAction {
@@ -94,10 +97,10 @@ pub fn render_page(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
     let count = state.service(&key).items.len();
 
     div()
+        .relative()
         .flex()
         .flex_col()
         .gap_4()
-        .children(render_dialog(state, cx))
         .child(
             theme::card()
                 .child(
@@ -107,16 +110,18 @@ pub fn render_page(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
                         .gap_2()
                         .child(
                             div()
-                                .text_lg()
-                                .font_weight(FontWeight::BOLD)
+                                .text_size(px(14.0))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(rgb(theme::TEXT_PRIMARY))
                                 .child(label.to_string()),
                         )
                         .child(theme::count_badge(count))
                         .child(
                             div()
                                 .ml_auto()
-                                .text_sm()
-                                .text_color(rgb(theme::MUTED))
+                                .font_family(theme::MONO_FONT)
+                                .text_size(px(11.0))
+                                .text_color(rgb(theme::TEXT_SECONDARY))
                                 .child(format!("{count} {noun}s listed · region {REGION}")),
                         ),
                 )
@@ -124,6 +129,7 @@ pub fn render_page(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
         )
         .children(render_operations(state, cx))
         .children(render_detail(state, cx))
+        .children(dialog_overlay(state, cx))
         .into_any()
 }
 
@@ -145,7 +151,6 @@ fn resource_table(state: &AppState, key: &str, cx: &mut Context<RootView>) -> An
     div()
         .flex()
         .flex_col()
-        .gap_1()
         .child(theme::table_head(&[
             (Some(320.0), "NAME"),
             (None, "DETAILS"),
@@ -153,13 +158,10 @@ fn resource_table(state: &AppState, key: &str, cx: &mut Context<RootView>) -> An
         .children(resources.items.iter().map(|r| {
             let name = r.name.clone();
             let selected = state.selected_resource.as_deref() == Some(name.as_str());
-            theme::row(SharedString::from(format!("row-{name}")), selected)
+            table_row(SharedString::from(format!("row-{name}")), selected)
                 .on_click(cx.listener(move |this, _, _, cx| select(&this.state, cx, name.clone())))
-                .child(theme::cell(Some(320.0), div().child(r.name.clone())))
-                .child(theme::cell(
-                    None,
-                    div().text_color(rgb(theme::MUTED)).child(r.detail.clone()),
-                ))
+                .child(mono_cell(Some(320.0), theme::TEXT_PRIMARY, r.name.clone()))
+                .child(mono_cell(None, theme::TEXT_SECONDARY, r.detail.clone()))
                 .into_any()
         }))
         .into_any()
@@ -1120,11 +1122,52 @@ fn output_line(line: &str) -> AnyElement {
         .px_3()
         .py_2()
         .rounded_md()
-        .bg(rgb(theme::RAISED))
-        .text_sm()
-        .text_color(rgb(theme::TEXT))
+        .bg(rgb(theme::SURFACE))
+        .font_family(theme::MONO_FONT)
+        .text_size(px(12.0))
+        .text_color(rgb(theme::TEXT_PRIMARY))
         .child(line.to_string())
         .into_any()
+}
+
+/// The flush row a table draws inside a card: square corners, one hairline under it, the
+/// height the design's rows sit at.
+fn table_row(id: impl Into<SharedString>, selected: bool) -> Stateful<Div> {
+    theme::row(id, selected)
+        .h(px(40.0))
+        .rounded_none()
+        .border_b_1()
+        .border_color(rgb(theme::BORDER))
+}
+
+/// One text cell of a table row, in the mono the design sets ids, keys and counts in.
+fn mono_cell(width: Option<f32>, color: u32, text: impl Into<SharedString>) -> Div {
+    theme::cell(
+        width,
+        div()
+            .font_family(theme::MONO_FONT)
+            .text_size(px(12.0))
+            .text_color(rgb(color))
+            .overflow_hidden()
+            .child(text.into()),
+    )
+}
+
+/// The page's one modal: the dialog card floats over the page behind a dimmed backdrop.
+fn dialog_overlay(state: &AppState, cx: &mut Context<RootView>) -> Option<AnyElement> {
+    state.dialog?;
+    Some(
+        div()
+            .absolute()
+            .inset_0()
+            .flex()
+            .flex_col()
+            .items_center()
+            .bg(rgba(BACKDROP))
+            .pt(px(56.0))
+            .children(render_dialog(state, cx))
+            .into_any(),
+    )
 }
 
 pub fn render_dialog(state: &AppState, cx: &mut Context<RootView>) -> Option<AnyElement> {
@@ -1146,10 +1189,13 @@ pub fn render_dialog(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
             "Run",
         ),
     };
-    let mut card = theme::card()
-        .gap_2()
-        .border_color(rgb(theme::INFO))
-        .child(div().text_lg().font_weight(FontWeight::BOLD).child(title));
+    let mut card = theme::card().gap_2p5().w(px(560.0)).child(
+        div()
+            .text_size(px(15.0))
+            .font_weight(FontWeight::SEMIBOLD)
+            .text_color(rgb(theme::TEXT_PRIMARY))
+            .child(title),
+    );
     match dialog {
         Dialog::CreateBucket | Dialog::CreateQueue | Dialog::CreateNamed => {
             card = card.child(field_row("Name", state.input_name.clone()));
@@ -1238,7 +1284,7 @@ pub fn render_dialog(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
 }
 
 /// One entry of the detail card's action strip: its label, the button style it is painted
-/// in, and the call it dispatches. Orange is the call this page wants taken, red the one
+/// in, and the call it dispatches. The accent is the call this page wants taken, red the one
 /// that destroys something, ghost the ones that only re-read.
 fn b(label: &str, kind: theme::Kind, action: DetailAction) -> (String, theme::Kind, DetailAction) {
     (label.to_string(), kind, action)
@@ -1293,10 +1339,13 @@ pub fn render_operations(state: &AppState, cx: &mut Context<RootView>) -> Option
                 .flex()
                 .items_center()
                 .justify_between()
-                .child(theme::muted(format!(
-                    "{} result(s)",
-                    state.detail.output.len()
-                )))
+                .child(
+                    div()
+                        .font_family(theme::MONO_FONT)
+                        .text_size(px(11.0))
+                        .text_color(rgb(theme::TEXT_SECONDARY))
+                        .child(format!("{} result(s)", state.detail.output.len())),
+                )
                 .child(theme::chip_box(theme::button(
                     "clear-output",
                     "Clear",
@@ -1355,13 +1404,11 @@ fn field_row(label: &str, input: Entity<crate::views::text_field::TextField>) ->
     div()
         .flex()
         .items_center()
-        .gap_2()
+        .gap_3()
         .child(
             div()
                 .w(px(140.0))
-                .text_sm()
-                .text_color(rgb(theme::MUTED))
-                .child(label.to_string()),
+                .child(theme::mono_label(label.to_uppercase())),
         )
         .child(input)
         .into_any()
@@ -1379,8 +1426,10 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
             .gap_2()
             .child(
                 div()
-                    .text_lg()
-                    .font_weight(FontWeight::BOLD)
+                    .font_family(theme::MONO_FONT)
+                    .text_size(px(15.0))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(rgb(theme::TEXT_PRIMARY))
                     .child(res.name.clone()),
             )
             .when(state.action_busy, |d| d.child(busy_note())),
@@ -1502,7 +1551,6 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                     div()
                         .flex()
                         .flex_col()
-                        .gap_1()
                         .child(theme::table_head(OBJECT_COLUMNS))
                         .children(detail.objects.iter().map(|o| {
                             let actions = button_strip(vec![
@@ -1521,23 +1569,21 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                                     cx,
                                 ),
                             ]);
-                            theme::row(format!("object-{}", o.key), false)
-                                .text_sm()
-                                .child(theme::cell(
+                            table_row(format!("object-{}", o.key), false)
+                                .child(mono_cell(
                                     OBJECT_COLUMNS[0].0,
-                                    div().overflow_hidden().child(o.key.clone()),
+                                    theme::TEXT_PRIMARY,
+                                    o.key.clone(),
                                 ))
-                                .child(theme::cell(
+                                .child(mono_cell(
                                     OBJECT_COLUMNS[1].0,
-                                    div()
-                                        .text_color(rgb(theme::MUTED))
-                                        .child(o.size.to_string()),
+                                    theme::TEXT_SECONDARY,
+                                    o.size.to_string(),
                                 ))
-                                .child(theme::cell(
+                                .child(mono_cell(
                                     OBJECT_COLUMNS[2].0,
-                                    div()
-                                        .text_color(rgb(theme::MUTED))
-                                        .child(o.modified.clone()),
+                                    theme::TEXT_SECONDARY,
+                                    o.modified.clone(),
                                 ))
                                 .child(theme::cell(OBJECT_COLUMNS[3].0, actions))
                                 .into_any()
@@ -1553,7 +1599,20 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                     .map(|(a, t)| format!("{a} ({t})"))
                     .collect::<Vec<_>>()
                     .join(", ");
-                card = card.child(theme::muted(format!("Key: {schema}")));
+                card = card.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_3()
+                        .child(theme::mono_label("KEY SCHEMA"))
+                        .child(
+                            div()
+                                .font_family(theme::MONO_FONT)
+                                .text_size(px(12.0))
+                                .text_color(rgb(theme::TEXT_PRIMARY))
+                                .child(schema),
+                        ),
+                );
             }
             if detail.loading {
                 card = card.child(theme::muted("Scanning items..."));
@@ -1564,14 +1623,13 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                     div()
                         .flex()
                         .flex_col()
-                        .gap_1()
                         .child(theme::table_head(ITEM_COLUMNS))
                         .children(detail.items.iter().map(|item| {
-                            theme::row(format!("item-{item}"), false)
-                                .text_sm()
-                                .child(theme::cell(
+                            table_row(format!("item-{item}"), false)
+                                .child(mono_cell(
                                     ITEM_COLUMNS[0].0,
-                                    div().text_color(rgb(theme::MUTED)).child(item.clone()),
+                                    theme::TEXT_PRIMARY,
+                                    item.clone(),
                                 ))
                                 .child(theme::cell(
                                     ITEM_COLUMNS[1].0,
@@ -1599,22 +1657,18 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                     div()
                         .flex()
                         .flex_col()
-                        .gap_1()
                         .child(theme::table_head(MESSAGE_COLUMNS))
                         .children(detail.messages.iter().map(|m| {
-                            theme::row(format!("message-{}", m.id), false)
-                                .text_sm()
-                                .child(theme::cell(
+                            table_row(format!("message-{}", m.id), false)
+                                .child(mono_cell(
                                     MESSAGE_COLUMNS[0].0,
-                                    div().child(m.body.clone()),
+                                    theme::TEXT_PRIMARY,
+                                    m.body.clone(),
                                 ))
-                                .child(theme::cell(
+                                .child(mono_cell(
                                     MESSAGE_COLUMNS[1].0,
-                                    div()
-                                        .text_xs()
-                                        .text_color(rgb(theme::FAINT))
-                                        .overflow_hidden()
-                                        .child(m.id.clone()),
+                                    theme::TEXT_SECONDARY,
+                                    m.id.clone(),
                                 ))
                                 .child(theme::cell(
                                     MESSAGE_COLUMNS[2].0,
@@ -1648,7 +1702,6 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                     div()
                         .flex()
                         .flex_col()
-                        .gap_1()
                         .child(theme::table_head(CHILD_COLUMNS))
                         .children(detail.children.iter().map(|c| {
                             // A shard and a secret version have no delete call of their own;
@@ -1665,16 +1718,16 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                                     cx,
                                 )
                             });
-                            theme::row(format!("child-{}", c.name), false)
-                                .text_sm()
-                                .child(theme::cell(CHILD_COLUMNS[0].0, div().child(c.name.clone())))
-                                .child(theme::cell(
+                            table_row(format!("child-{}", c.name), false)
+                                .child(mono_cell(
+                                    CHILD_COLUMNS[0].0,
+                                    theme::TEXT_PRIMARY,
+                                    c.name.clone(),
+                                ))
+                                .child(mono_cell(
                                     CHILD_COLUMNS[1].0,
-                                    div()
-                                        .text_xs()
-                                        .text_color(rgb(theme::MUTED))
-                                        .overflow_hidden()
-                                        .child(c.detail.clone()),
+                                    theme::TEXT_SECONDARY,
+                                    c.detail.clone(),
                                 ))
                                 .child(theme::cell(
                                     CHILD_COLUMNS[2].0,
@@ -1696,10 +1749,16 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                 .p_3()
                 .rounded_lg()
                 .border_1()
-                .border_color(rgb(theme::WARN))
-                .bg(rgb(theme::tint(theme::WARN)))
-                .text_color(rgb(theme::WARN))
-                .child(div().flex_1().child(text.clone()))
+                .border_color(rgb(theme::BORDER))
+                .bg(rgba(theme::tint(theme::WARN)))
+                .child(theme::dot(theme::WARN))
+                .child(
+                    div()
+                        .flex_1()
+                        .text_sm()
+                        .text_color(rgb(theme::TEXT_PRIMARY))
+                        .child(text.clone()),
+                )
                 .child(theme::chip_box(theme::button(
                     "dismiss-reveal",
                     "Dismiss",

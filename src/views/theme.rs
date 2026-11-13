@@ -1,49 +1,101 @@
 //! The palette and the shared builders every page draws with.
 //!
-//! Colours are sampled from the console mockups: a navy ground, a darker sidebar, raised
-//! cards, AWS orange for anything actionable, and four status hues the tables reuse. Page
-//! files call these instead of spelling out colours, so the console stays one design when
-//! the palette moves.
+//! Tokens come from the Stratus Console `.pen` design (`variables` block): a near-black
+//! navy ground, a raised card layer, a hairline border, a near-white accent, and four
+//! status hues the tables reuse. Page files call these instead of spelling out colours,
+//! so the console stays one design when the palette moves.
 
 use crate::app_state::AppState;
 use crate::views::root::RootView;
 use gpui_kit::{
     AnyElement, Context, Div, FontWeight, SharedString, Stateful, TestSupportExt, Window, div,
-    prelude::*, px, rgb,
+    prelude::*, px, rgb, rgba,
 };
 
-pub const PAGE: u32 = 0x161c28;
-pub const SIDEBAR: u32 = 0x10151d;
-pub const CARD: u32 = 0x1b2334;
-pub const RAISED: u32 = 0x262e3f;
-pub const BORDER: u32 = 0x262e3f;
-pub const NAV_ACTIVE: u32 = 0x2d2519;
+// Background tokens — the .pen `variables` block, verbatim.
+pub const PAGE: u32 = 0x0C111D;
+pub const SIDEBAR: u32 = 0x101828;
+pub const SURFACE: u32 = 0x111A2C;
+pub const RAISED: u32 = 0x182230;
+pub const CARD: u32 = RAISED;
 
-pub const TEXT: u32 = 0xe8edf5;
-pub const MUTED: u32 = 0x939daf;
-pub const FAINT: u32 = 0x555d6c;
-/// The oversized page title, drawn dark enough to read as furniture rather than content.
-pub const GHOST: u32 = 0x2b3548;
+// Border
+pub const BORDER: u32 = 0x232F42;
 
-pub const ACCENT: u32 = 0xff9900;
-/// Text sitting on orange.
-pub const ON_ACCENT: u32 = 0x14100a;
+// Text
+pub const TEXT: u32 = TEXT_PRIMARY;
+pub const TEXT_PRIMARY: u32 = 0xF5F7FA;
+pub const TEXT_SECONDARY: u32 = 0x98A2B3;
+pub const MUTED: u32 = TEXT_SECONDARY;
+pub const FAINT: u32 = 0x667085;
 
-pub const OK: u32 = 0x3fb950;
-pub const WARN: u32 = 0xe3b341;
-pub const FAIL: u32 = 0xf87171;
-pub const INFO: u32 = 0x6cb6ff;
+// Accents — the accent is the near-white action colour; `ON_ACCENT` is what sits on it.
+pub const ACCENT: u32 = 0xF7F9FC;
+pub const ON_ACCENT: u32 = 0x0D1117;
+pub const NAV_ACTIVE: u32 = 0xF7F9FC14;
 
-/// The background a status pill puts behind its colour, so the pill reads as a tinted chip
-/// and not as a block of saturated paint.
-pub fn tint(color: u32) -> u32 {
-    match color {
-        OK => 0x1b2f2d,
-        WARN => 0x2d2519,
-        FAIL => 0x38222a,
-        INFO => 0x1e2a3c,
-        ACCENT => 0x2d2519,
-        _ => RAISED,
+// Status colors
+pub const OK: u32 = 0x17B26A;
+pub const WARN: u32 = 0xF79009;
+pub const FAIL: u32 = 0xF04438;
+pub const INFO: u32 = 0x7FA8D9;
+
+/// A status colour at the .pen's tint strength (0x21, ~13% alpha), as a 0xRRGGBBAA value
+/// [`rgba`] accepts.
+pub fn dimmed(color: u32) -> u32 {
+    (color << 8) | 0x21
+}
+
+pub fn success_dim() -> u32 {
+    dimmed(OK)
+}
+
+pub fn info_dim() -> u32 {
+    dimmed(INFO)
+}
+
+/// The accent at its .pen strength (8% white) — nav selection, icon wraps.
+pub const ACCENT_DIM_RGBA: u32 = 0xF7F9FC14;
+
+/// The two families the design alternates between. UI text rides the window default
+/// (Inter when installed), labels and ids ride the mono.
+pub const UI_FONT: &str = "Inter";
+pub const MONO_FONT: &str = "IBM Plex Mono";
+
+/// The small uppercase mono label with the design's 0.8px tracking.
+pub fn mono_label(text: impl Into<SharedString>) -> AnyElement {
+    div()
+        .font_family(MONO_FONT)
+        .text_size(px(11.0))
+        .text_color(rgb(TEXT_SECONDARY))
+        .child(text.into())
+        .into_any()
+}
+
+/// A lucide icon drawn at `size` in `color`, straight out of the bundled catalog.
+pub fn icon(name: gpui_kit::assets::IconName, size: f32, color: u32) -> AnyElement {
+    div()
+        .text_size(px(size))
+        .text_color(rgb(color))
+        .child(name)
+        .into_any()
+}
+
+/// The lucide mark a service group rides in the sidebar and on the services grid. The
+/// design maps one icon per group family; an unclassified group gets the generic box.
+pub fn group_icon(name: &str) -> gpui_kit::assets::IconName {
+    match name {
+        "Compute" => gpui_kit::assets::IconName::Cpu,
+        "Storage" => gpui_kit::assets::IconName::HardDrive,
+        "Database" => gpui_kit::assets::IconName::Database,
+        "Networking" => gpui_kit::assets::IconName::Network,
+        "Security & Identity" => gpui_kit::assets::IconName::Shield,
+        "Analytics" => gpui_kit::assets::IconName::Activity,
+        "Machine Learning" => gpui_kit::assets::IconName::Brain,
+        "Developer Tools" => gpui_kit::assets::IconName::Code,
+        "Management" => gpui_kit::assets::IconName::Settings,
+        "Integration" => gpui_kit::assets::IconName::Workflow,
+        _ => gpui_kit::assets::IconName::Box,
     }
 }
 
@@ -55,7 +107,7 @@ pub fn card() -> Div {
         .gap_3()
         .p_4()
         .rounded_lg()
-        .bg(rgb(CARD))
+        .bg(rgb(RAISED))
         .border_1()
         .border_color(rgb(BORDER))
 }
@@ -72,32 +124,30 @@ pub fn page_header(title: impl Into<SharedString>, subtitle: impl Into<SharedStr
         .gap_1()
         .child(
             div()
-                .text_3xl()
-                .font_weight(FontWeight::BOLD)
-                .text_color(rgb(GHOST))
+                .font_family(UI_FONT)
+                .text_size(px(22.0))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(rgb(TEXT_PRIMARY))
                 .child(title.into()),
         )
         .child(
             div()
-                .text_sm()
-                .text_color(rgb(MUTED))
+                .font_family(MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(TEXT_SECONDARY))
                 .child(subtitle.into()),
         )
 }
 
 /// The small uppercase label above a group of rows.
 pub fn section_label(text: impl Into<SharedString>) -> AnyElement {
-    div()
-        .text_xs()
-        .text_color(rgb(FAINT))
-        .child(text.into())
-        .into_any()
+    mono_label(text)
 }
 
 pub fn muted(text: impl Into<SharedString>) -> AnyElement {
     div()
         .text_sm()
-        .text_color(rgb(MUTED))
+        .text_color(rgb(TEXT_SECONDARY))
         .child(text.into())
         .into_any()
 }
@@ -108,16 +158,31 @@ pub fn unavailable() -> AnyElement {
 }
 
 pub fn dot(color: u32) -> AnyElement {
-    div().size(px(8.0)).rounded_full().bg(rgb(color)).into_any()
+    div().size(px(6.0)).rounded_full().bg(rgb(color)).into_any()
 }
 
-/// The orange-tinted square the mockups put in front of a service or a stat.
-pub fn tile(monogram: impl Into<SharedString>) -> AnyElement {
+/// The icon wrap the design puts a service's lucide mark in.
+pub fn icon_wrap(name: gpui_kit::assets::IconName) -> AnyElement {
+    div()
+        .size(px(34.0))
+        .rounded_md()
+        .bg(rgba(ACCENT_DIM_RGBA))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(rgb(ACCENT))
+        .text_size(px(17.0))
+        .child(name)
+        .into_any()
+}
+
+/// The white-tinted square a service mark sits in.
+pub fn tile_monogram(monogram: impl Into<SharedString>) -> AnyElement {
     div()
         .w(px(34.0))
         .h(px(34.0))
         .rounded_md()
-        .bg(rgb(tint(ACCENT)))
+        .bg(rgba(ACCENT_DIM_RGBA))
         .flex()
         .items_center()
         .justify_center()
@@ -126,15 +191,25 @@ pub fn tile(monogram: impl Into<SharedString>) -> AnyElement {
         .into_any()
 }
 
-/// The small rounded status chip: OK, WARN, FAIL, running, stopped.
+/// The small rounded status pill: a dot, a mono label, and the status colour at tint
+/// strength behind them.
 pub fn pill(label: impl Into<SharedString>, color: u32) -> AnyElement {
     div()
+        .flex()
+        .items_center()
+        .gap_1p5()
         .px_2()
         .py_0p5()
-        .rounded_md()
-        .bg(rgb(tint(color)))
-        .text_color(rgb(color))
-        .child(label.into())
+        .rounded_full()
+        .bg(rgba(dimmed(color)))
+        .child(dot(color))
+        .child(
+            div()
+                .font_family(MONO_FONT)
+                .text_size(px(10.0))
+                .text_color(rgb(color))
+                .child(label.into()),
+        )
         .into_any()
 }
 
@@ -144,7 +219,9 @@ pub fn count_badge(count: usize) -> AnyElement {
         .px_2()
         .rounded_md()
         .bg(rgb(RAISED))
-        .text_color(rgb(MUTED))
+        .font_family(MONO_FONT)
+        .text_size(px(11.0))
+        .text_color(rgb(TEXT_SECONDARY))
         .child(count.to_string())
         .into_any()
 }
@@ -161,29 +238,30 @@ pub enum Kind {
     Danger,
 }
 
-/// The box every [`button`] chip is painted in. The vertical padding is deliberately the
-/// small step: with it the chip's own height is [`CHIP_HEIGHT`], so a strip that frames the
-/// chip at that height gets a chip that fits instead of one that overflows it.
+/// The box every [`button`] chip is painted in.
 fn paint(d: Stateful<Div>, kind: Kind) -> Stateful<Div> {
     let d = d
         .flex()
         .items_center()
         .gap_2()
         .px_3()
-        .py_0p5()
+        .py_1()
         .rounded_md()
         .cursor_pointer();
     match kind {
         Kind::Primary => d.bg(rgb(ACCENT)).text_color(rgb(ON_ACCENT)),
         Kind::Ghost => d
-            .bg(rgb(PAGE))
-            .text_color(rgb(TEXT))
+            .text_color(rgb(TEXT_PRIMARY))
             .border_1()
-            .border_color(rgb(RAISED)),
-        Kind::Neutral => d.bg(rgb(RAISED)).text_color(rgb(TEXT)),
+            .border_color(rgb(BORDER)),
+        Kind::Neutral => d
+            .bg(rgb(RAISED))
+            .border_1()
+            .border_color(rgb(BORDER))
+            .text_color(rgb(TEXT_PRIMARY)),
         Kind::Danger => d
-            .bg(rgb(tint(FAIL)))
-            .text_color(rgb(FAIL))
+            .bg(rgb(FAIL))
+            .text_color(rgb(PAGE))
             .border_1()
             .border_color(rgb(FAIL)),
     }
@@ -205,7 +283,12 @@ pub fn button(
         .into_any()
 }
 
-/// The tab strip: a label, an optional count, and the orange underline when it is the one
+/// The tile the mockups put in front of a service. Backward compatibility alias.
+pub fn tile(monogram: impl Into<SharedString>) -> AnyElement {
+    tile_monogram(monogram)
+}
+
+/// The tab strip: a label, an optional count, and the accent border when it is the one
 /// page showing.
 pub fn tab(
     id: impl Into<SharedString>,
@@ -223,23 +306,24 @@ pub fn tab(
         .items_center()
         .gap_2()
         .px_3()
-        .py_0p5()
+        .py_1()
         .rounded_md()
         .cursor_pointer()
         .border_1()
         .border_color(rgb(if active { ACCENT } else { BORDER }))
-        .bg(rgb(if active { tint(ACCENT) } else { CARD }))
-        .text_color(rgb(if active { ACCENT } else { MUTED }))
+        .bg(rgb(if active { RAISED } else { SIDEBAR }))
+        .text_color(rgb(if active { TEXT_PRIMARY } else { TEXT_SECONDARY }))
         .child(label.into())
         .when_some(count, |d, c| d.child(c.to_string()))
         .on_click(cx.listener(move |this, _, _, cx| on_click(this, cx)))
         .into_any()
 }
 
-/// A row of the left navigation: icon tile, label, count, and the amber tint when open.
+/// A row of the left navigation: leading icon, label, count, and the raised tint when
+/// open.
 pub fn nav_row(
     key: impl Into<SharedString>,
-    monogram: impl Into<SharedString>,
+    icon: AnyElement,
     label: impl Into<SharedString>,
     count: Option<usize>,
     selected: bool,
@@ -252,17 +336,27 @@ pub fn nav_row(
         .test_support()
         .flex()
         .items_center()
-        .gap_2()
-        .px_2()
-        .py_1()
+        .gap_2p5()
+        .px_2p5()
+        .py_1p5()
         .rounded_md()
         .cursor_pointer()
-        .bg(rgb(if selected { NAV_ACTIVE } else { PAGE }))
-        .text_color(rgb(if selected { ACCENT } else { TEXT }))
-        .child(div().w(px(20.0)).text_xs().child(monogram.into()))
+        .bg(rgb(if selected { RAISED } else { SIDEBAR }))
+        .text_color(rgb(if selected {
+            TEXT_PRIMARY
+        } else {
+            TEXT_SECONDARY
+        }))
+        .child(div().w(px(20.0)).flex().justify_center().child(icon))
         .child(div().flex_1().child(label.into()))
         .when_some(count, |d, c| {
-            d.child(div().text_xs().text_color(rgb(MUTED)).child(c.to_string()))
+            d.child(
+                div()
+                    .font_family(MONO_FONT)
+                    .text_size(px(11.0))
+                    .text_color(rgb(FAINT))
+                    .child(c.to_string()),
+            )
         })
         .on_click(cx.listener(move |this, _, _, cx| {
             this.state.update(cx, |s, cx| on_click(s, cx));
@@ -278,12 +372,15 @@ pub fn table_head(columns: &[(Option<f32>, &str)]) -> AnyElement {
         .flex_row()
         .items_center()
         .gap_3()
+        .h(px(36.0))
         .px_3()
-        .py_2()
-        .text_xs()
-        .text_color(rgb(FAINT))
+        .bg(rgb(RAISED))
+        .border_b_1()
+        .border_color(rgb(BORDER))
+        .text_size(px(10.0))
+        .text_color(rgb(TEXT_SECONDARY))
         .children(columns.iter().map(|(w, label)| {
-            let d = div().child(label.to_string());
+            let d = div().font_family(MONO_FONT).child(label.to_string());
             match w {
                 Some(w) => d.w(px(*w)),
                 None => d.flex_1(),
@@ -301,7 +398,7 @@ pub fn cell(width: Option<f32>, body: impl Into<Div>) -> Div {
     }
 }
 
-/// A table row on the card background, with the hover raise the mockups show.
+/// A table row on the surface background, with the hover raise the mockups show.
 pub fn row(id: impl Into<SharedString>, selected: bool) -> Stateful<Div> {
     div()
         .id(id.into())
@@ -314,7 +411,7 @@ pub fn row(id: impl Into<SharedString>, selected: bool) -> Stateful<Div> {
         .py_2()
         .rounded_md()
         .cursor_pointer()
-        .bg(rgb(if selected { RAISED } else { CARD }))
+        .bg(rgb(if selected { RAISED } else { SURFACE }))
 }
 
 /// The four-up metric card at the top of Overview.
@@ -336,20 +433,42 @@ pub fn stat(
         .min_w(px(220.0))
         .flex()
         .flex_col()
-        .gap_2()
+        .gap_2p5()
         .p_4()
         .rounded_lg()
-        .bg(rgb(CARD))
+        .bg(rgb(RAISED))
         .border_1()
         .border_color(rgb(BORDER))
-        .child(div().text_xs().text_color(rgb(FAINT)).child(label.clone()))
-        .child(div().text_2xl().text_color(rgb(TEXT)).child(value))
-        .child(div().text_sm().text_color(rgb(note_color)).child(note))
+        .child(
+            div()
+                .font_family(MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(TEXT_SECONDARY))
+                .child(label.clone()),
+        )
+        .child(
+            div()
+                .font_family(UI_FONT)
+                .text_size(px(26.0))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(rgb(TEXT_PRIMARY))
+                .child(value),
+        )
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap_1p5()
+                .font_family(MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(note_color))
+                .child(note),
+        )
         .into_any()
 }
 
 /// The height a control row lays its chips out at.
-pub const CHIP_HEIGHT: f32 = 34.0;
+pub const CHIP_HEIGHT: f32 = 36.0;
 
 /// The box a [`button`] or a [`tab`] goes in inside a strip. Both hand back a finished chip
 /// that asks for no height of its own, and a child that asks for none takes the whole cross
@@ -363,4 +482,9 @@ pub fn chip_box(chip: AnyElement) -> AnyElement {
         .h(px(CHIP_HEIGHT))
         .child(chip)
         .into_any()
+}
+
+/// The background a status pill puts behind its colour — the status hue at tint strength.
+pub fn tint(color: u32) -> u32 {
+    dimmed(color)
 }

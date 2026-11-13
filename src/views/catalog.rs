@@ -183,7 +183,14 @@ fn toolbar(state: &AppState, grid: bool, cx: &mut Context<RootView>) -> AnyEleme
         .items_center()
         .h(px(CHIP_HEIGHT))
         .gap_2()
-        .child(state.input_search.clone())
+        // The field paints its own box; the frame only gives it the room and the mono face
+        // the design asks of whatever is typed into it.
+        .child(
+            div()
+                .flex_1()
+                .font_family(theme::MONO_FONT)
+                .child(state.input_search.clone()),
+        )
         .children(Sort::ALL.iter().map(|sort| {
             let sort = *sort;
             chip_frame(theme::tab(
@@ -217,32 +224,47 @@ fn toolbar(state: &AppState, grid: bool, cx: &mut Context<RootView>) -> AnyEleme
 
 /// The frame a toolbar chip is laid out in. `theme::tab` and `theme::button` hand back a
 /// finished element that asks for no height, and a child that asks for none in this strip
-/// takes the whole cross axis of the row, so the chip is given a box of its own here.
+/// takes the whole cross axis of the row, so the chip is given a box of its own here. The
+/// frame also carries the mono face the design gives the toolbar's labels.
 fn chip_frame(chip: AnyElement) -> AnyElement {
     div()
         .flex()
         .flex_row()
         .items_center()
         .h(px(CHIP_HEIGHT))
+        .font_family(theme::MONO_FONT)
+        .text_size(px(12.0))
         .child(chip)
         .into_any()
 }
 
-/// The line every card opens with: the category's two letters, its name, and how many
-/// services the catalog puts in it.
+/// The line every card opens with: the group's mark, its name, and how many services the
+/// catalog puts in it.
 fn card_head(group: &Group) -> AnyElement {
     div()
         .flex()
         .items_center()
         .gap_2()
-        .child(theme::tile(monogram(&group.name)))
+        .child(theme::icon(
+            theme::group_icon(&group.name),
+            15.0,
+            theme::TEXT_SECONDARY,
+        ))
         .child(
             div()
                 .flex_1()
-                .font_weight(FontWeight::BOLD)
+                .text_size(px(13.0))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(rgb(theme::TEXT_PRIMARY))
                 .child(group.name.clone()),
         )
-        .child(theme::count_badge(group.total))
+        .child(
+            div()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
+                .child(group.total.to_string()),
+        )
         .into_any()
 }
 
@@ -262,9 +284,13 @@ fn grid_card(group: &Group, selected: &str, cx: &mut Context<RootView>) -> AnyEl
         .when(hidden > 0, |d| {
             // Not a link: a card cannot page through a group, the list view is what shows the
             // rest, and naming that is the honest version of the mockup's "+N more".
-            d.child(theme::muted(format!(
-                "+{hidden} more — switch to list view to see all"
-            )))
+            d.child(
+                div()
+                    .font_family(theme::MONO_FONT)
+                    .text_size(px(11.0))
+                    .text_color(rgb(theme::MUTED))
+                    .child(format!("+{hidden} more — switch to list view to see all")),
+            )
         })
         .into_any()
 }
@@ -287,11 +313,19 @@ fn list_card(group: &Group, selected: &str, cx: &mut Context<RootView>) -> AnyEl
 fn grid_row(service: &Service, selected: &str, cx: &mut Context<RootView>) -> AnyElement {
     let key = service.signing_name.clone();
     theme::row(format!("svc-{key}"), selected == key.as_str())
-        .child(div().flex_1().child(service.title.clone()))
+        .hover(|style| style.bg(rgb(theme::RAISED)))
         .child(
             div()
-                .text_sm()
-                .text_color(rgb(theme::MUTED))
+                .flex_1()
+                .text_size(px(13.0))
+                .text_color(rgb(theme::TEXT_PRIMARY))
+                .child(service.title.clone()),
+        )
+        .child(
+            div()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
                 .child(service.ops.to_string()),
         )
         .child(theme::dot(status_color(service)))
@@ -307,25 +341,45 @@ fn grid_row(service: &Service, selected: &str, cx: &mut Context<RootView>) -> An
 fn list_row(service: &Service, selected: &str, cx: &mut Context<RootView>) -> AnyElement {
     let key = service.signing_name.clone();
     let signing_name = service.signing_name.clone();
-    let protocol = service.protocol.clone().unwrap_or("no protocol".into());
     let ops = service.ops.to_string();
     let color = status_color(service);
     theme::row(format!("svc-{key}"), selected == key.as_str())
+        .hover(|style| style.bg(rgb(theme::RAISED)))
         .child(theme::cell(
             LIST_COLUMNS[0].0,
-            div().child(service.title.clone()),
+            div()
+                .text_size(px(13.0))
+                .text_color(rgb(theme::TEXT_PRIMARY))
+                .child(service.title.clone()),
         ))
         .child(theme::cell(
             LIST_COLUMNS[1].0,
-            div().text_color(rgb(theme::MUTED)).child(signing_name),
+            div()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
+                .child(signing_name),
         ))
         .child(theme::cell(
             LIST_COLUMNS[2].0,
-            div().text_color(rgb(theme::MUTED)).child(protocol),
+            match &service.protocol {
+                Some(protocol) => div()
+                    .font_family(theme::MONO_FONT)
+                    .text_size(px(12.0))
+                    .text_color(rgb(theme::TEXT_SECONDARY))
+                    .child(protocol.clone()),
+                // A service the model gives no protocol for is a real absence, so it gets
+                // the dash, not a word that pretends to be an answer.
+                None => div().child(theme::unavailable()),
+            },
         ))
         .child(theme::cell(
             LIST_COLUMNS[3].0,
-            div().text_color(rgb(theme::MUTED)).child(ops),
+            div()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
+                .child(ops),
         ))
         .child(theme::cell(
             LIST_COLUMNS[4].0,

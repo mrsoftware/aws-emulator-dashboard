@@ -2,7 +2,9 @@ use crate::app_state::{AppState, ConnectionState};
 use crate::aws::client::runtime;
 use crate::views::root::RootView;
 use crate::views::theme;
-use gpui_kit::{AnyElement, Context, Entity, Window, div, prelude::*, px, rgb};
+use gpui_kit::{
+    AnyElement, Context, Entity, SharedString, Window, div, prelude::*, px, rgb,
+};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy)]
@@ -202,12 +204,10 @@ fn process_card(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
                 .items_center()
                 .gap_3()
                 .child(theme::pill(badge_text, badge_color))
-                .child(theme::muted(backend.to_string()))
-                .when(!instance.is_empty(), |d| {
-                    d.child(theme::muted(instance.clone()))
-                })
+                .child(mono_note(backend))
+                .when(!instance.is_empty(), |d| d.child(mono_note(instance.clone())))
                 .when(!uptime.is_empty(), |d| {
-                    d.child(theme::muted(format!("up {uptime}")))
+                    d.child(mono_note(format!("up {uptime}")))
                 }),
         )
         .child(info_row("Endpoint", &endpoint))
@@ -369,7 +369,15 @@ fn stepper(
             cx,
             dec,
         )))
-        .child(div().w(px(72.0)).text_center().text_sm().child(value))
+        .child(
+            div()
+                .w(px(72.0))
+                .text_center()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_PRIMARY))
+                .child(value),
+        )
         .child(theme::chip_box(theme::button(
             inc_id,
             "+",
@@ -407,8 +415,9 @@ fn info_row(label: &str, value: &str) -> AnyElement {
         .child(
             div()
                 .w(px(140.0))
-                .text_sm()
-                .text_color(rgb(theme::FAINT))
+                .font_family(theme::MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
                 .child(label.to_string()),
         )
         .child(if value.is_empty() {
@@ -416,10 +425,23 @@ fn info_row(label: &str, value: &str) -> AnyElement {
         } else {
             div()
                 .flex_1()
-                .text_sm()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_PRIMARY))
                 .overflow_hidden()
                 .child(value.to_string())
         })
+        .into_any()
+}
+
+/// The secondary mono line the process card's status row rides on: backends, process ids and
+/// durations are ids and clocks, not prose.
+fn mono_note(text: impl Into<SharedString>) -> AnyElement {
+    div()
+        .font_family(theme::MONO_FONT)
+        .text_size(px(12.0))
+        .text_color(rgb(theme::TEXT_SECONDARY))
+        .child(text.into())
         .into_any()
 }
 

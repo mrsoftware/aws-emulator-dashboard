@@ -1,9 +1,5 @@
 //! Dashboard: the four metrics the emulator can actually answer, the traffic the proxy
 //! caught, what is failing right now, and the services with the most resources.
-//!
-//! The mockup's "Lambda invocations" and "monthly spend" cards are not here because nothing
-//! in this build can answer them; the four cards below each name their source instead of
-//! inventing a trend. There is no history, so no card claims "+12 today".
 
 use crate::app_state::{AppState, ConnectionState};
 use crate::views::catalog::MANAGED;
@@ -17,25 +13,27 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// The rows the table shows: the newest traffic, since every entry is pushed at the front.
 const RECENT_ROWS: usize = 8;
 
-const TIME_W: f32 = 90.0;
-const METHOD_W: f32 = 70.0;
-const STATUS_W: f32 = 90.0;
-const LATENCY_W: f32 = 80.0;
+const TIME_W: f32 = 80.0;
+const SERVICE_W: f32 = 110.0;
+const EVENT_W: f32 = 170.0;
+const STATUS_W: f32 = 110.0;
 
 /// The widths [`activity_rows`] reuses for its cells, so the header and the rows line up.
+/// The proxy knows a request's verb and its latency — not the service behind it — so the
+/// columns name what the row really carries.
 const ACTIVITY_COLUMNS: &[(Option<f32>, &str)] = &[
     (Some(TIME_W), "TIME"),
-    (Some(METHOD_W), "METHOD"),
-    (None, "PATH"),
+    (None, "RESOURCE"),
+    (Some(SERVICE_W), "METHOD"),
+    (Some(EVENT_W), "LATENCY"),
     (Some(STATUS_W), "STATUS"),
-    (Some(LATENCY_W), "LATENCY"),
 ];
 
 pub fn render(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
     div()
         .flex()
         .flex_col()
-        .gap_4()
+        .gap_5()
         .child(metrics(state))
         .child(
             div()
@@ -51,81 +49,71 @@ pub fn render(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
         .into_any()
 }
 
-/// The four metric cards. Every note says where its number came from; none of them is a trend.
+/// The four metric cards matching the design. Every value names a source this build can
+/// actually answer: the design's lambda-invocations and monthly-spend cards have no
+/// emulator source, so those slots carry real aggregates instead of invented numbers.
 fn metrics(state: &AppState) -> AnyElement {
     let running = state
         .instances
         .iter()
         .filter(|i| i.state == "running")
         .count();
-    let resources: usize = MANAGED
-        .iter()
-        .map(|(key, _)| state.service(key).items.len())
-        .sum();
 
-    let (requests_note, requests_color) = if state.proxy_running {
-        (
-            format!("proxy on :{}", state.settings.proxy_port),
-            theme::MUTED,
-        )
-    } else {
-        (
-            "proxy stopped - start it on Traffic".to_string(),
-            theme::WARN,
-        )
-    };
-
-    let emulator = match &state.connection {
-        ConnectionState::Connected(_) => "connected",
-        ConnectionState::Connecting => "connecting",
-        ConnectionState::Error(_) => "unreachable",
-        ConnectionState::Disconnected => "not checked",
-    };
-    // Uptime is only for an emulator this dashboard itself started; one the user launched by
-    // hand has no clock this page can read.
-    let (uptime_note, uptime_color) = match state.emulator.started_at {
-        Some(started) => (
-            format!(
-                "up {}",
-                crate::views::control_panel::format_uptime(started.elapsed())
-            ),
-            theme::MUTED,
-        ),
-        None => ("not started by this dashboard".to_string(), theme::FAINT),
-    };
+    let s3_count = state.service("s3").items.len();
+    let dynamodb_count = state.service("dynamodb").items.len();
+    let alarm_count = state.service("monitoring").items.len();
 
     div()
         .flex()
         .flex_row()
         .flex_wrap()
-        .gap_3()
+        .gap_4()
         .child(theme::stat(
             "instances",
             "RUNNING INSTANCES",
             running.to_string(),
-            format!("of {} known to DescribeInstances", state.instances.len()),
-            theme::MUTED,
+            format!("of {} known", state.instances.len()),
+            theme::OK,
         ))
         .child(theme::stat(
-            "resources",
-            "RESOURCES LISTED",
-            resources.to_string(),
-            format!("across {} managed services", MANAGED.len()),
-            theme::MUTED,
+            "s3",
+            "S3 BUCKETS",
+            s3_count.to_string(),
+            format!("{} tables in DynamoDB", dynamodb_count),
+            theme::INFO,
         ))
         .child(theme::stat(
-            "requests",
+            "alarms",
+            "CLOUDWATCH ALARMS",
+            alarm_count.to_string(),
+            format!(
+                "{} errors in the last sweep",
+                state
+                    .resources
+                    .values()
+                    .filter(|r| r.error.is_some())
+                    .count()
+            ),
+            if alarm_count > 0 {
+                theme::OK
+            } else {
+                theme::INFO
+            },
+        ))
+        .child(theme::stat(
+            "traffic",
             "REQUESTS CAPTURED",
             state.traffic.len().to_string(),
-            requests_note,
-            requests_color,
-        ))
-        .child(theme::stat(
-            "emulator",
-            "EMULATOR",
-            emulator,
-            uptime_note,
-            uptime_color,
+            if state.proxy_running {
+                "proxy running".to_string()
+            } else {
+                "proxy stopped".to_string()
+            },
+            if state.proxy_running {
+                theme::OK
+            } else {
+                theme::WARN
+            },
         ))
         .into_any()
 }
@@ -142,8 +130,8 @@ fn titled_panel(title: &str, trailing: Option<AnyElement>) -> Div {
             .gap_2()
             .child(
                 div()
-                    .text_base()
-                    .font_weight(FontWeight::BOLD)
+                    .text_size(px(14.0))
+                    .font_weight(FontWeight::SEMIBOLD)
                     .text_color(rgb(theme::TEXT))
                     .child(title.to_string()),
             )
@@ -170,7 +158,7 @@ fn recent_activity(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
     titled_panel("Recent activity", Some(view_all))
         .flex_1()
         .min_w(px(520.0))
-        .gap_1()
+        .gap_0()
         .child(theme::table_head(ACTIVITY_COLUMNS))
         .children(activity_rows(state))
         .when(state.traffic.is_empty(), |d| {
@@ -194,30 +182,49 @@ fn activity_rows(state: &AppState) -> Vec<AnyElement> {
                 theme::FAIL
             };
             theme::row(format!("activity-{index}"), false)
+                .h(px(40.0))
+                .rounded_none()
+                .border_b_1()
+                .border_color(rgb(theme::BORDER))
                 .child(theme::cell(
                     Some(TIME_W),
-                    div().text_color(rgb(theme::MUTED)).child(clock(entry.at)),
-                ))
-                .child(theme::cell(
-                    Some(METHOD_W),
-                    div().child(entry.method.clone()),
+                    div()
+                        .font_family(theme::MONO_FONT)
+                        .text_size(px(12.0))
+                        .text_color(rgb(theme::TEXT_SECONDARY))
+                        .child(clock(entry.at)),
                 ))
                 .child(theme::cell(
                     None,
                     div()
-                        .text_color(rgb(theme::TEXT))
+                        .font_family(theme::MONO_FONT)
+                        .text_size(px(12.0))
+                        .text_color(rgb(theme::TEXT_PRIMARY))
                         .overflow_hidden()
+                        .text_ellipsis()
                         .child(entry.path.clone()),
                 ))
                 .child(theme::cell(
-                    Some(STATUS_W),
-                    div().child(theme::pill(entry.status.to_string(), status_color)),
+                    Some(SERVICE_W),
+                    div()
+                        .font_family(theme::MONO_FONT)
+                        .text_size(px(12.0))
+                        .text_color(rgb(theme::TEXT_SECONDARY))
+                        .child(entry.method.clone()),
                 ))
                 .child(theme::cell(
-                    Some(LATENCY_W),
+                    Some(EVENT_W),
                     div()
-                        .text_color(rgb(theme::MUTED))
+                        .font_family(theme::MONO_FONT)
+                        .text_size(px(12.0))
+                        .text_color(rgb(theme::TEXT_SECONDARY))
                         .child(format!("{} ms", entry.latency_ms)),
+                ))
+                .child(theme::cell(
+                    Some(STATUS_W),
+                    div()
+                        .flex()
+                        .child(theme::pill(entry.status.to_string(), status_color)),
                 ))
                 .into_any()
         })
@@ -278,11 +285,11 @@ fn alert_row(message: String) -> AnyElement {
         .flex_row()
         .items_center()
         .gap_2()
-        .child(theme::dot(theme::FAIL))
+        .child(theme::pill("FAIL", theme::FAIL))
         .child(
             div()
                 .flex_1()
-                .text_sm()
+                .text_size(px(13.0))
                 .text_color(rgb(theme::TEXT))
                 .overflow_hidden()
                 .child(message),
@@ -342,13 +349,13 @@ fn pinned_card(
     div()
         .id(SharedString::from(format!("pin-{key}")))
         .test_support()
-        .w(px(260.0))
+        .w(px(220.0))
         .flex()
         .flex_col()
-        .gap_2()
-        .p_4()
+        .gap_3()
+        .p_3p5()
         .rounded_lg()
-        .bg(rgb(theme::CARD))
+        .bg(rgb(theme::RAISED))
         .border_1()
         .border_color(rgb(theme::BORDER))
         .cursor_pointer()
@@ -366,14 +373,20 @@ fn pinned_card(
         )
         .child(
             div()
-                .text_base()
-                .font_weight(FontWeight::BOLD)
+                .text_size(px(13.0))
+                .font_weight(FontWeight::MEDIUM)
                 .child(label.to_string()),
         )
-        .child(div().text_sm().text_color(rgb(theme::MUTED)).child(format!(
-            "{count} resource{}",
-            if count == 1 { "" } else { "s" }
-        )))
+        .child(
+            div()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(11.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
+                .child(format!(
+                    "{count} resource{}",
+                    if count == 1 { "" } else { "s" }
+                )),
+        )
         .on_click(cx.listener(move |this, _, _, cx| {
             let target = target.clone();
             this.state.update(cx, |s, cx| s.open_page(&target, cx));

@@ -7,7 +7,7 @@ use crate::aws::client::{EmulatorConnection, runtime};
 use crate::emulator::proxy::MAX_ENTRIES;
 use crate::views::root::RootView;
 use crate::views::theme;
-use gpui_kit::{AnyElement, Context, Entity, div, prelude::*, rgb};
+use gpui_kit::{AnyElement, Context, Entity, div, prelude::*, px, rgb};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Column widths shared by the header strip and every row, so the table lines up. The path
@@ -154,10 +154,26 @@ fn proxy_card(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
                     |this, _window, cx| clear(&this.state, cx),
                 ))),
         )
-        .child(theme::muted(format!(
-            "Point your SDK or CLI at http://127.0.0.1:{proxy_port} to capture traffic. \
-             Dashboard requests are routed through the proxy while it runs."
-        )))
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .items_center()
+                .gap_1()
+                .child(theme::muted("Point your SDK or CLI at"))
+                .child(
+                    div()
+                        .font_family(theme::MONO_FONT)
+                        .text_size(px(12.0))
+                        .text_color(rgb(theme::TEXT_PRIMARY))
+                        .child(format!("http://127.0.0.1:{proxy_port}")),
+                )
+                .child(theme::muted(
+                    "to capture traffic. Dashboard requests are routed through the proxy while \
+                     it runs.",
+                )),
+        )
         .when_some(state.proxy_error.clone(), |d, err| {
             d.child(
                 div()
@@ -174,26 +190,31 @@ fn proxy_card(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
 /// extrapolated.
 fn table_card(state: &AppState) -> AnyElement {
     theme::card()
-        .gap_1()
         .child(theme::section_label(format!(
             "{} requests (newest first)",
             state.traffic.len()
         )))
-        .when(!state.traffic.is_empty(), |d| {
-            // The header strip only appears over rows, exactly as before: an empty capture is
-            // the one state with nothing to label.
-            d.child(theme::table_head(COLUMNS))
-        })
-        .when(state.traffic.is_empty(), |d| {
-            d.child(theme::muted("No traffic captured yet"))
-        })
-        .children(
-            state
-                .traffic
-                .iter()
-                .enumerate()
-                .take(MAX_ENTRIES)
-                .map(|(index, entry)| traffic_row(index, entry)),
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_0()
+                .when(!state.traffic.is_empty(), |d| {
+                    // The header strip only appears over rows, exactly as before: an empty capture is
+                    // the one state with nothing to label.
+                    d.child(theme::table_head(COLUMNS))
+                })
+                .when(state.traffic.is_empty(), |d| {
+                    d.child(div().py_2().child(theme::muted("No traffic captured yet")))
+                })
+                .children(
+                    state
+                        .traffic
+                        .iter()
+                        .enumerate()
+                        .take(MAX_ENTRIES)
+                        .map(|(index, entry)| traffic_row(index, entry)),
+                ),
         )
         .into_any()
 }
@@ -207,29 +228,46 @@ fn traffic_row(index: usize, entry: &crate::emulator::proxy::TrafficEntry) -> An
         theme::FAIL
     };
     theme::row(format!("traffic-{index}"), false)
-        .text_sm()
+        .h(px(40.0))
+        .rounded_none()
+        .border_b_1()
+        .border_color(rgb(theme::BORDER))
         .child(theme::cell(
             COLUMNS[0].0,
             div()
-                .text_color(rgb(theme::MUTED))
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
                 .child(format_time(entry.at)),
         ))
-        .child(theme::cell(COLUMNS[1].0, div().child(entry.method.clone())))
+        .child(theme::cell(
+            COLUMNS[1].0,
+            div()
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
+                .child(entry.method.clone()),
+        ))
         .child(theme::cell(
             COLUMNS[2].0,
             div()
-                .text_color(rgb(theme::MUTED))
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_PRIMARY))
                 .overflow_hidden()
+                .text_ellipsis()
                 .child(entry.path.clone()),
         ))
         .child(theme::cell(
             COLUMNS[3].0,
-            div().child(theme::pill(entry.status.to_string(), status_color)),
+            div().flex().child(theme::pill(entry.status.to_string(), status_color)),
         ))
         .child(theme::cell(
             COLUMNS[4].0,
             div()
-                .text_color(rgb(theme::MUTED))
+                .font_family(theme::MONO_FONT)
+                .text_size(px(12.0))
+                .text_color(rgb(theme::TEXT_SECONDARY))
                 .child(format!("{} ms", entry.latency_ms)),
         ))
         .into_any()

@@ -190,7 +190,9 @@ fn instance_row(i: &InstanceInfo, state: &AppState, cx: &mut Context<RootView>) 
         ))
         .child(theme::cell(
             COLUMNS[1].0,
-            div().child(theme::pill(i.state.clone(), state_color(&i.state))),
+            div()
+                .flex()
+                .child(theme::pill(i.state.clone(), state_color(&i.state))),
         ))
         .child(theme::cell(
             COLUMNS[2].0,

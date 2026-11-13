@@ -25,7 +25,7 @@ const OUT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/console-rende
 fn headless() -> HeadlessAppContext {
     HeadlessAppContext::with_platform(
         std::sync::Arc::new(gpui_apple::AppleTextSystem::new()),
-        std::sync::Arc::new(()),
+        std::sync::Arc::new(gpui_kit::assets::AllAssets::new("")),
         gpui_platform::current_headless_renderer,
     )
 }
