@@ -1,0 +1,41 @@
+[package]
+name = "aws-emulator-dashboard"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gpui-kit = "0.9"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+dirs = "6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+aws-config = { version = "1.5", default-features = false, features = ["rustls", "behavior-version-latest"] }
+aws-credential-types = "1.2"
+aws-sdk-s3 = "1"
+aws-sdk-dynamodb = "1"
+aws-sdk-sqs = "1"
+aws-smithy-types = "1"
+aws-sdk-ec2 = "1"
+aws-sdk-iam = "1"
+aws-sdk-sns = "1"
+aws-sdk-cloudwatchlogs = "1"
+aws-sdk-cloudwatch = "1"
+aws-sdk-rds = "1"
+aws-sdk-secretsmanager = "1"
+aws-sdk-kinesis = "1"
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+axum = "0.8"
+
+# gpui-kit's `test-support` feature pulls `gpui-fast`, whose `proptest` requirement
+# cannot resolve in this environment, so the kit's element-observation helpers
+# (`find`/`click`/`texts`) are unavailable. This enables GPUI's own `test-support`,
+# which gives the headless `VisualTestContext` and `Window::render_to_image()`, and is
+# dev-only so `cargo build` and `cargo run` stay on the inert path.
+[dev-dependencies]
+gpui-pre = { version = "=0.3.12", features = ["test-support"] }
+gpui-pre-platform = { version = "=0.3.12", features = ["test-support"] }
+gpui-pre-apple = "0.3.12"
