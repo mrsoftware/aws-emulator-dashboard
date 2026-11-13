@@ -31,12 +31,11 @@ reqwest = { version = "0.12", features = ["rustls-tls"], default-features = fals
 axum = "0.8"
 
 # The headless render tests draw with CoreText and Metal, so the whole test-support stack is
-# declared only for the platform that has both. Two reasons, both learned from a red Linux CI:
-# gpui-pre-apple exposes no text system elsewhere, and `test-support` unifies GPUI's features
-# across the graph, which makes Linux compile and link a second copy of the GPUI stack — wgpu
-# included — into a test binary that cannot contain a single render test. That link is big
-# enough to die with `ld terminated with signal 7`. `TestSupportExt::test_support`, which the
-# views call on every platform, is a passthrough without the feature, so Linux loses nothing.
+# declared only for the platform that has both: gpui-pre-apple exposes no text system elsewhere,
+# and `test-support` unifies GPUI's features across the graph, which makes Linux rebuild and link
+# a second copy of the GPUI stack — wgpu included — into a test binary that cannot contain a
+# single render test. `TestSupportExt::test_support`, which the views call on every platform, is a
+# passthrough without the feature, so Linux loses nothing.
 #
 # gpui-kit's own `test-support` is still unused: it pulls `gpui-fast`, whose `proptest`
 # requirement cannot resolve in this environment, so the kit's element-observation helpers

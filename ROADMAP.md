@@ -184,29 +184,33 @@ operations in the same services.
 - 🧭 **Diagnostics.** `tracing_subscriber` writes to stdout with an env filter
   ([src/main.rs:19](src/main.rs#L19)) and nothing else, so a bug report has no artifact. Needs a
   log file under the config dir and a "reveal diagnostics" affordance.
-- 🚧 **Linux CI was red twice, for two different reasons.** Both pushes so far failed
-  `cargo clippy --all-targets` on `ubuntu-latest` with `E0433: cannot find AppleTextSystem in
-  gpui_apple` — the render module reached for CoreText on a platform that has no such crate, and
-  `gpui-pre-apple` was an unconditional dev-dependency. Fixed by gating the module to macOS
-  ([src/main.rs:7](src/main.rs#L7)) and the crate to the same target
-  ([Cargo.toml:46](Cargo.toml#L46)). That exposed the next layer: `cargo test` then died in the
-  **link step**, because the test binary pulls GPUI's Linux wgpu stack (`wgpu`, `khronos-egl`,
-  `glutin_wgl_sys`, `ash`) and the workflow installed `libvulkan1` — runtime only, no
-  `libvulkan.so` for the linker — and no GL/EGL/GBM dev packages at all. rustc's diagnostic for a
-  failed link is one enormous `cc` command line that Actions drops from the log, so the workflow
-  now re-runs the link verbosely on failure
-  ([.github/workflows/ci.yml:57](.github/workflows/ci.yml#L57)) and installs
-  `libvulkan-dev libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libgbm-dev libdrm-dev` plus
-  the X11 dev libraries. Nothing caught any of this earlier because macOS CI was green and every
-  local gate runs on macOS. 🧭 Still owed: those 11 pages render on one OS only, so the layout
-  proof has a single point of failure until a headless text system that works on Linux is wired
-  in.
+- ✅ **Linux CI is green, and it took four pushes to find out why.** Three causes were stacked
+  behind each other, and the first two were diagnosed wrongly before the log said otherwise.
+  (1) `cargo clippy --all-targets` failed on `ubuntu-latest` with `E0433: cannot find
+  AppleTextSystem in gpui_apple` — the render module reached for CoreText on a platform with no
+  such crate; fixed by gating the module ([src/main.rs:7](src/main.rs#L7)) and then the whole
+  GPUI test-support dependency block ([Cargo.toml:43](Cargo.toml#L43)) to macOS. (2) `cargo test`
+  then died in the link with `linking with cc failed` and no cause, because rustc reports a
+  failed link as one ~64KB `cc` line that Actions drops. The dev packages added on this theory —
+  Mesa, Vulkan, EGL, GBM, DRM — bought nothing: a per-library probe showed all twenty `-l` flags
+  already resolved. The gate added in (1) did not stop the crash either. (3) The real answer was
+  in the filtered log: **rust-lld itself crashed** with `collect2: fatal error: ld terminated
+  with signal 7 [Bus error]`, only on the test target, after `cargo build` had linked the same
+  graph on the same disk — runner disk exhaustion, which is GitHub's triage for this exact
+  signature ([actions/runner-images#13367](https://github.com/actions/runner-images/issues/13367)).
+  The runner starts with 15G free and `target/` reaches 12G, so the job now removes the .NET,
+  Android, GHC and CodeQL payloads the image ships and links with 37G free
+  ([.github/workflows/ci.yml:21](.github/workflows/ci.yml#L21)). Verified on `a2fc867`: macOS 25
+  passed / 25 ignored, Linux 14 passed / 23 ignored. Worth keeping in mind for the release job,
+  which will want `--release` objects that do not share this `target/`.
+  🧭 Still owed: those 11 pages render on one OS only, so the layout proof has a single point of
+  failure until a headless text system that works on Linux is wired in.
 - 🧭 **CI does not test the thing it ships.** [ci.yml](.github/workflows/ci.yml) runs
   fmt/clippy/build/test on macOS and Linux, but the 25 `#[ignore]`d live tests never run there
   because no job starts an emulator container. Either add a service-container job or state in
   the README that live coverage is local-only.
 - 🧭 **No interaction-level tests at all.** The `test-support` workaround in
-  [Cargo.toml:33](Cargo.toml#L33) means gpui-kit's `find`/`click`/`texts` are unavailable, so
+  [Cargo.toml:40](Cargo.toml#L40) means gpui-kit's `find`/`click`/`texts` are unavailable, so
   every UI test is a screenshot plus a state assertion. No test has ever pressed a button.
   Worth an upstream check before building a bespoke harness.
 - 🧭 **Release path.** No `--release` job, no artifact upload, no `.app` bundle, no icon, no

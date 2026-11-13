@@ -8,23 +8,35 @@ Notable changes to the AWS Emulator Dashboard. The format follows
 
 ### Fixed
 
-- **Linux CI is no longer red at the lint step.** Both pushes so far failed
+- **Linux CI is no longer red at the lint step.** The first two pushes failed
   `cargo clippy --all-targets` on `ubuntu-latest` with `E0433: cannot find AppleTextSystem in
   gpui_apple`: the headless render module reached for CoreText on a platform that has no such
-  crate. The module is now gated to macOS and `gpui-pre-apple` is a macOS-only dev-dependency.
+  crate. The module is now gated to macOS ([src/main.rs:7](src/main.rs#L7)) and the crate with it.
   The 11 page-screenshot tests run on macOS only; the logic tests still run on both.
-- **Linux CI no longer dies in the link step.** Once clippy passed, `cargo test` failed to link
-  the test binary: it pulls GPUI's Linux wgpu stack, and the workflow installed `libvulkan1`
-  (runtime, no linker symlink) and no GL/EGL/GBM dev packages. The workflow now installs
-  `libvulkan-dev`, `libgl1-mesa-dev`, `libegl1-mesa-dev`, `libgles2-mesa-dev`, `libgbm-dev`,
-  `libdrm-dev` and the X11 dev libraries, and re-runs the link verbosely on failure so the next
-  red run prints what is actually missing.
+- **Linux CI no longer dies in the link step.** Once clippy passed, `cargo test` on
+  `ubuntu-latest` failed with `linking with cc failed`, and the log named the victim: rust-lld
+  crashed with `collect2: fatal error: ld terminated with signal 7 [Bus error]` while linking the
+  test target, after `cargo build` had linked the same crate graph on the same disk. It was
+  runner disk, matching GitHub's triage for this signature (actions/runner-images#13367): the job
+  starts with 15G free and `target/` reaches 12G. The workflow now deletes the .NET, Android, GHC
+  and CodeQL payloads the image ships, which leaves 37G free before the build. Two earlier
+  theories were wrong and are undone: the Mesa, Vulkan, EGL, GBM and DRM dev packages bought
+  nothing — a per-library probe showed all twenty link fine — and the crash survived removing the
+  GPU stack from the test binary.
+- **Linux CI no longer links a GPU stack it cannot use.** `gpui-pre` and `gpui-pre-platform` were
+  unconditional dev-dependencies with `test-support`, which unifies GPUI's features across the
+  graph: `gpui-pre-platform` maps that feature to `gpui_wgpu/test-support`, and `gpui_wgpu` is a
+  Linux-target dependency. So Linux rebuilt `gpui-pre`, `gpui-pre-wgpu`, `gpui-pre-linux`,
+  `gpui-kit` and `proptest` and linked a second copy of all of them into a test binary containing
+  no render test. All three GPUI test crates are now macOS-only dev-dependencies
+  ([Cargo.toml:43](Cargo.toml#L43)). This is safe on Linux because
+  `TestSupportExt::test_support`, which the views call on every platform, returns `Self`
+  unchanged without the feature.
 
 ### Verification status
 
-The Linux fixes above are pushed but not yet proven by a green run — watch
-[CI](https://github.com/mrsoftware/aws-emulator-dashboard/actions/workflows/ci.yml) before
-repeating the claim that Linux tests pass. macOS has been green throughout.
+`a2fc867` is the first commit green on both CI legs: macOS 25 tests, Linux 14 passed and 23
+ignored, which is what the platform split predicts. macOS was green throughout.
 
 ## [0.1.0] — 2026-11-13
 

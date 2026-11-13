@@ -84,8 +84,8 @@ cargo test -- --ignored                 # 25 more: need a live emulator on :9297
 cargo test -- --ignored --list          # see what each one touches before running it
 ```
 
-The headless render tests draw through CoreText and Metal, so they compile only on macOS;
-Linux CI runs the logic tests and skips the 11 that screenshot pages.
+The headless render tests draw through CoreText and Metal, so they compile only on macOS: Linux
+CI runs 14 tests and ignores 23, macOS runs 25 and ignores 25.
 
 The ignored set is honest about what it changes: some walk a full lifecycle (create, read,
 delete) and clean up after themselves; `live_seed_demo_resources` creates demo resources and
@@ -99,9 +99,11 @@ Linux.
 ## Platform support
 
 - **macOS** is the development target and the only platform the app has been used on.
-- **Linux** is in the CI matrix. GPUI's Linux stack needs the Mesa, Vulkan, GBM and X11 dev
-  libraries that [ci.yml](.github/workflows/ci.yml) installs; the badge at the top of this file
-  is the current verdict, not this sentence.
+- **Linux** is in the CI matrix and green, running the logic tests. GPUI's Linux stack needs the
+  ALSA, fontconfig, GLib, Vulkan-loader, Wayland and X11 dev libraries that
+  [ci.yml](.github/workflows/ci.yml) installs. A debug build of this dependency graph reaches
+  12 GB, which is more than a fresh runner has free, so the job reclaims the image's unused
+  toolchains before building — see ROADMAP M5 if you are copying this workflow.
 - **Windows** is not supported yet — see ROADMAP M5.
 
 ## Documentation
