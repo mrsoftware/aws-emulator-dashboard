@@ -1,1 +1,4 @@
 /target
+
+# agent scratch plans, not part of the app
+.claude/
