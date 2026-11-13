@@ -30,17 +30,18 @@ aws-sdk-kinesis = "1"
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
 axum = "0.8"
 
-# gpui-kit's `test-support` feature pulls `gpui-fast`, whose `proptest` requirement
-# cannot resolve in this environment, so the kit's element-observation helpers
-# (`find`/`click`/`texts`) are unavailable. This enables GPUI's own `test-support`,
-# which gives the headless `VisualTestContext` and `Window::render_to_image()`, and is
-# dev-only so `cargo build` and `cargo run` stay on the inert path.
-[dev-dependencies]
+# The headless render tests draw with CoreText and Metal, so the whole test-support stack is
+# declared only for the platform that has both. Two reasons, both learned from a red Linux CI:
+# gpui-pre-apple exposes no text system elsewhere, and `test-support` unifies GPUI's features
+# across the graph, which makes Linux compile and link a second copy of the GPUI stack — wgpu
+# included — into a test binary that cannot contain a single render test. That link is big
+# enough to die with `ld terminated with signal 7`. `TestSupportExt::test_support`, which the
+# views call on every platform, is a passthrough without the feature, so Linux loses nothing.
+#
+# gpui-kit's own `test-support` is still unused: it pulls `gpui-fast`, whose `proptest`
+# requirement cannot resolve in this environment, so the kit's element-observation helpers
+# (`find`/`click`/`texts`) stay unavailable.
+[target.'cfg(target_os = "macos")'.dev-dependencies]
 gpui-pre = { version = "=0.3.12", features = ["test-support"] }
 gpui-pre-platform = { version = "=0.3.12", features = ["test-support"] }
-
-# The headless render tests draw with CoreText and Metal, so this is only there for the
-# platform that has both. Declaring it unconditionally made `cargo clippy --all-targets`
-# fail on Linux CI, where the crate exposes no text system.
-[target.'cfg(target_os = "macos")'.dev-dependencies]
 gpui-pre-apple = "0.3.12"

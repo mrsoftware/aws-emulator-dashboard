@@ -31,11 +31,8 @@ jobs:
           sudo apt-get install -y \
             gcc g++ pkg-config make cmake clang lld \
             libasound2-dev libfontconfig-dev libglib2.0-dev libssl-dev \
-            libva-dev libwayland-dev libx11-xcb-dev \
-            libxkbcommon-x11-dev libzstd-dev \
-            libvulkan-dev libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
-            libgbm-dev libdrm-dev libx11-dev libxcursor-dev libxi-dev \
-            libxrandr-dev libxss-dev libxxf86vm-dev
+            libva-dev libvulkan1 libwayland-dev libx11-xcb-dev \
+            libxkbcommon-x11-dev libzstd-dev
 
       - name: Install Metal toolchain
         if: runner.os == 'macOS'
@@ -50,26 +47,9 @@ jobs:
       - name: Build
         run: cargo build
 
-      - name: Probe linkable system libraries
-        # `cargo test` fails in the link step on Linux and rustc reports that as one enormous
-        # `cc` command line, which Actions drops from the log — so the failure arrives with no
-        # cause attached. This asks the linker directly, one library at a time, and prints the
-        # short list of what is actually unsatisfiable.
-        if: runner.os == 'Linux'
-        run: |
-          printf 'int main(void){return 0;}\n' > /tmp/probe.c
-          for l in vulkan GL EGL GLESv2 gbm drm wayland-client wayland-cursor xkbcommon \
-                   xcb X11 Xext asound fontconfig zstd lzma bz2 z ssl crypto; do
-            if cc /tmp/probe.c -l"$l" -o /tmp/probe 2>/dev/null; then
-              printf '  -l%-16s ok\n' "$l"
-            else
-              printf '  -l%-16s CANNOT LINK\n' "$l"
-            fi
-          done
-
       - name: Test
         # rustc reports a failed link as one ~64KB `cc` command line, and Actions drops that
-        # line and everything after it, which is where the linker's actual complaint lives.
+        # line and everything after it — which is where the linker's actual complaint lives.
         # Long lines are filtered out so the short `ld:` notes survive, and PIPESTATUS keeps the
         # real exit code.
         run: |
