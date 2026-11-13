@@ -2,9 +2,7 @@ use crate::app_state::{AppState, ConnectionState};
 use crate::aws::client::runtime;
 use crate::views::root::RootView;
 use crate::views::theme;
-use gpui_kit::{
-    AnyElement, Context, Entity, SharedString, Window, div, prelude::*, px, rgb,
-};
+use gpui_kit::{AnyElement, Context, Entity, SharedString, Window, div, prelude::*, px, rgb};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy)]
@@ -205,7 +203,9 @@ fn process_card(state: &AppState, cx: &mut Context<RootView>) -> AnyElement {
                 .gap_3()
                 .child(theme::pill(badge_text, badge_color))
                 .child(mono_note(backend))
-                .when(!instance.is_empty(), |d| d.child(mono_note(instance.clone())))
+                .when(!instance.is_empty(), |d| {
+                    d.child(mono_note(instance.clone()))
+                })
                 .when(!uptime.is_empty(), |d| {
                     d.child(mono_note(format!("up {uptime}")))
                 }),

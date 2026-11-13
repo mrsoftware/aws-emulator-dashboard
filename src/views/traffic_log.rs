@@ -260,7 +260,9 @@ fn traffic_row(index: usize, entry: &crate::emulator::proxy::TrafficEntry) -> An
         ))
         .child(theme::cell(
             COLUMNS[3].0,
-            div().flex().child(theme::pill(entry.status.to_string(), status_color)),
+            div()
+                .flex()
+                .child(theme::pill(entry.status.to_string(), status_color)),
         ))
         .child(theme::cell(
             COLUMNS[4].0,
