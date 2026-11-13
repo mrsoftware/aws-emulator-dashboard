@@ -17,7 +17,6 @@ pub const PAGE: u32 = 0x0C111D;
 pub const SIDEBAR: u32 = 0x101828;
 pub const SURFACE: u32 = 0x111A2C;
 pub const RAISED: u32 = 0x182230;
-pub const CARD: u32 = RAISED;
 
 // Border
 pub const BORDER: u32 = 0x232F42;
@@ -32,7 +31,6 @@ pub const FAINT: u32 = 0x667085;
 // Accents — the accent is the near-white action colour; `ON_ACCENT` is what sits on it.
 pub const ACCENT: u32 = 0xF7F9FC;
 pub const ON_ACCENT: u32 = 0x0D1117;
-pub const NAV_ACTIVE: u32 = 0xF7F9FC14;
 
 // Status colors
 pub const OK: u32 = 0x17B26A;
@@ -44,14 +42,6 @@ pub const INFO: u32 = 0x7FA8D9;
 /// [`rgba`] accepts.
 pub fn dimmed(color: u32) -> u32 {
     (color << 8) | 0x21
-}
-
-pub fn success_dim() -> u32 {
-    dimmed(OK)
-}
-
-pub fn info_dim() -> u32 {
-    dimmed(INFO)
 }
 
 /// The accent at its .pen strength (8% white) — nav selection, icon wraps.
@@ -159,21 +149,6 @@ pub fn unavailable() -> AnyElement {
 
 pub fn dot(color: u32) -> AnyElement {
     div().size(px(6.0)).rounded_full().bg(rgb(color)).into_any()
-}
-
-/// The icon wrap the design puts a service's lucide mark in.
-pub fn icon_wrap(name: gpui_kit::assets::IconName) -> AnyElement {
-    div()
-        .size(px(34.0))
-        .rounded_md()
-        .bg(rgba(ACCENT_DIM_RGBA))
-        .flex()
-        .items_center()
-        .justify_center()
-        .text_color(rgb(ACCENT))
-        .text_size(px(17.0))
-        .child(name)
-        .into_any()
 }
 
 /// The white-tinted square a service mark sits in.
