@@ -50,8 +50,28 @@ jobs:
       - name: Build
         run: cargo build
 
+      - name: Probe linkable system libraries
+        # `cargo test` fails in the link step on Linux and rustc reports that as one enormous
+        # `cc` command line, which Actions drops from the log — so the failure arrives with no
+        # cause attached. This asks the linker directly, one library at a time, and prints the
+        # short list of what is actually unsatisfiable.
+        if: runner.os == 'Linux'
+        run: |
+          printf 'int main(void){return 0;}\n' > /tmp/probe.c
+          for l in vulkan GL EGL GLESv2 gbm drm wayland-client wayland-cursor xkbcommon \
+                   xcb X11 Xext asound fontconfig zstd lzma bz2 z ssl crypto; do
+            if cc /tmp/probe.c -l"$l" -o /tmp/probe 2>/dev/null; then
+              printf '  -l%-16s ok\n' "$l"
+            else
+              printf '  -l%-16s CANNOT LINK\n' "$l"
+            fi
+          done
+
       - name: Test
-        # The link step is where a missing system library shows up, and rustc's diagnostic for
-        # it is one enormous `cc` command line that Actions drops. Re-running the link verbosely
-        # and printing the tail keeps the next red run self-explanatory.
-        run: cargo test || { cargo test --no-run -v 2>&1 | tail -40; exit 1; }
+        # rustc reports a failed link as one ~64KB `cc` command line, and Actions drops that
+        # line and everything after it, which is where the linker's actual complaint lives.
+        # Long lines are filtered out so the short `ld:` notes survive, and PIPESTATUS keeps the
+        # real exit code.
+        run: |
+          cargo test 2>&1 | awk 'length($0) < 400'
+          exit ${PIPESTATUS[0]}
