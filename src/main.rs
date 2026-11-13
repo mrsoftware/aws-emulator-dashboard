@@ -1,7 +1,10 @@
 mod app_state;
 mod aws;
 mod catalog;
-#[cfg(test)]
+/// The render tests lay pages out through GPUI's headless platform, whose text system is
+/// CoreText and whose headless renderer is Metal. Neither exists on a Linux CI runner, so the
+/// module is compiled only where it can actually draw.
+#[cfg(all(test, target_os = "macos"))]
 mod console_render_tests;
 mod emulator;
 mod settings;

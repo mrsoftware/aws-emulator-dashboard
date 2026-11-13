@@ -38,4 +38,9 @@ axum = "0.8"
 [dev-dependencies]
 gpui-pre = { version = "=0.3.12", features = ["test-support"] }
 gpui-pre-platform = { version = "=0.3.12", features = ["test-support"] }
+
+# The headless render tests draw with CoreText and Metal, so this is only there for the
+# platform that has both. Declaring it unconditionally made `cargo clippy --all-targets`
+# fail on Linux CI, where the crate exposes no text system.
+[target.'cfg(target_os = "macos")'.dev-dependencies]
 gpui-pre-apple = "0.3.12"

@@ -6,8 +6,13 @@ Notable changes to the AWS Emulator Dashboard. The format follows
 
 ## [Unreleased]
 
-Nothing yet. The next entry is expected from ROADMAP M1 — the first services beyond the
-eleven managed today.
+### Fixed
+
+- **Linux CI is no longer red.** Both pushes so far failed `cargo clippy --all-targets` on
+  `ubuntu-latest` with `E0433: cannot find AppleTextSystem in gpui_apple`: the headless render
+  module reached for CoreText on a platform that has no such crate. The module is now gated to
+  macOS and `gpui-pre-apple` is a macOS-only dev-dependency. The 11 page-screenshot tests run on
+  macOS only; the logic tests still run on both.
 
 ## [0.1.0] — 2026-11-13
 

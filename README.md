@@ -1,5 +1,7 @@
 # AWS Emulator Dashboard
 
+[![CI](https://github.com/mrsoftware/aws-emulator-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/mrsoftware/aws-emulator-dashboard/actions/workflows/ci.yml)
+
 A native Rust desktop console for a local AWS emulator: one window that inventories, manages,
 and watches the emulator's in-memory AWS instead of the real one. Built on the `gpui-kit`
 crate (GPUI, the Zed UI toolkit) — no Electron, no browser, no web server.
@@ -82,10 +84,13 @@ cargo test -- --ignored                 # 25 more: need a live emulator on :9297
 cargo test -- --ignored --list          # see what each one touches before running it
 ```
 
+The headless render tests draw through CoreText and Metal, so they compile only on macOS;
+Linux CI runs the logic tests and skips the 11 that screenshot pages.
+
 The ignored set is honest about what it changes: some walk a full lifecycle (create, read,
 delete) and clean up after themselves; `live_seed_demo_resources` creates demo resources and
 leaves them. Run them against a disposable emulator. CI does not have one, so it only runs the
-non-ignored 25.
+non-ignored tests.
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `cargo fmt --check`,
 `cargo clippy --all-targets -- -D warnings`, `cargo build`, and `cargo test` on macOS and
