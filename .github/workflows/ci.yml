@@ -18,6 +18,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Reclaim runner disk space
+        # `cargo test` on Linux dies in the link with `ld terminated with signal 7 [Bus error]`
+        # inside rust-lld, on a runner whose free space a 940-crate debug graph does not fit in.
+        # GitHub treats that crash as disk exhaustion (actions/runner-images#13367), and this
+        # image ships toolchains nobody here uses. Prints are the evidence if it happens again.
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE" | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af > /dev/null
+          df -h "$GITHUB_WORKSPACE" | tail -1
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -53,5 +66,8 @@ jobs:
         # Long lines are filtered out so the short `ld:` notes survive, and PIPESTATUS keeps the
         # real exit code.
         run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE" | tail -1
+          du -sh target 2>/dev/null | sed 's|$|\ttarget dir|' || true
           cargo test 2>&1 | awk 'length($0) < 400'
           exit ${PIPESTATUS[0]}
