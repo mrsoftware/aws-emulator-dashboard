@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: aws-emulator-dashboard-macos-arm64.app.zip
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: aws-emulator-dashboard-linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: aws-emulator-dashboard-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reclaim runner disk space
+        # Same 940-crate graph as CI; the Linux runner does not fit it without this.
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE" | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af > /dev/null
+          df -h "$GITHUB_WORKSPACE" | tail -1
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc g++ pkg-config make cmake clang lld \
+            libasound2-dev libfontconfig-dev libglib2.0-dev libssl-dev \
+            libva-dev libvulkan1 libwayland-dev libx11-xcb-dev \
+            libxkbcommon-x11-dev libzstd-dev
+
+      - name: Install Metal toolchain
+        if: runner.os == 'macOS'
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package (macOS app bundle)
+        # A release asset must be a single file, and Finder will only launch a `.app` that is
+        # a real bundle (Contents/MacOS + Info.plist), so the binary is wrapped and zipped;
+        # the zip is what preserves the bundle on download.
+        if: runner.os == 'macOS'
+        run: |
+          APP="AWS Emulator Dashboard.app"
+          mkdir -p "$APP/Contents/MacOS"
+          cp target/${{ matrix.target }}/release/aws-emulator-dashboard "$APP/Contents/MacOS/aws-emulator-dashboard"
+          cat > "$APP/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>AWS Emulator Dashboard</string>
+            <key>CFBundleDisplayName</key><string>AWS Emulator Dashboard</string>
+            <key>CFBundleIdentifier</key><string>io.github.mrsoftware.aws-emulator-dashboard</string>
+            <key>CFBundleExecutable</key><string>aws-emulator-dashboard</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>${GITHUB_REF_NAME#v}</string>
+            <key>CFBundleVersion</key><string>${GITHUB_REF_NAME}</string>
+            <key>LSMinimumSystemVersion</key><string>14.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          zip -qry ${{ matrix.artifact }} "$APP"
+          cp target/${{ matrix.target }}/release/aws-emulator-dashboard aws-emulator-dashboard-macos-arm64
+          shasum -a 256 ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+          shasum -a 256 aws-emulator-dashboard-macos-arm64 > aws-emulator-dashboard-macos-arm64.sha256
+
+      - name: Package (Linux)
+        # Raw binary, not an archive: the release asset loses the executable bit either way,
+        # so the archive would only add an unpack step.
+        if: runner.os == 'Linux'
+        run: |
+          cp target/${{ matrix.target }}/release/aws-emulator-dashboard ${{ matrix.artifact }}
+          shasum -a 256 ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item target/${{ matrix.target }}/release/aws-emulator-dashboard.exe ${{ matrix.artifact }}
+          $hash = (Get-FileHash ${{ matrix.artifact }} -Algorithm SHA256).Hash.ToLower()
+          "$hash  ${{ matrix.artifact }}" | Out-File -Encoding ascii ${{ matrix.artifact }}.sha256
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            aws-emulator-dashboard-*
+          generate_release_notes: true
