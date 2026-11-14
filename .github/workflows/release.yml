@@ -4,6 +4,10 @@ on:
   push:
     tags: ['v*']
 
+# The default token is read-only on private repos; creating the release needs contents:write.
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
