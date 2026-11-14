@@ -108,9 +108,21 @@ jobs:
           $hash = (Get-FileHash ${{ matrix.artifact }} -Algorithm SHA256).Hash.ToLower()
           "$hash  ${{ matrix.artifact }}" | Out-File -Encoding ascii ${{ matrix.artifact }}.sha256
 
+      - name: Generate release notes
+        run: |
+          PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          {
+            echo "Changes in ${{ github.ref_name }}:"
+            echo
+            git log --pretty=format:'- %s (%h)' "$PREV..HEAD" || true
+            echo
+            echo
+            echo "**Full Changelog**: ${{ github.server_url }}/${{ github.repository }}/compare/$PREV...${{ github.ref_name }}"
+          } > RELEASE_BODY.md
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             aws-emulator-dashboard-*
-          generate_release_notes: true
+          body_path: RELEASE_BODY.md
