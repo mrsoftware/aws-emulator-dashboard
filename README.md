@@ -9,6 +9,9 @@ crate (GPUI, the Zed UI toolkit) — no Electron, no browser, no web server.
 The UI follows the AWS console layout (sidebar of services, resource tables, an operations
 card per resource) so the muscle memory transfers. What it talks to is always the emulator.
 
+> **Status: active development.** The API, configuration format, and behavior change between
+> commits; macOS is the only tested platform. Do not depend on it in anything stable yet.
+
 ## What it does
 
 | Page | What you get |
