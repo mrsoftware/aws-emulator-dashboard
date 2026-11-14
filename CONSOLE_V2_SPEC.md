@@ -98,7 +98,7 @@ The CPU bar has **no emulator data source** → C3: bar rendered, labelled `cpu:
 
 Backed by `assets/services.json` ✅. "364 services across 17 groups", search over
 `title/signingName/sdkId`, sort by name or operation count, grid/list toggle, per-group
-counts, `Tier A` badge on the 11 managed services, `not in running build` badge on the 26.
+counts, `Tier A` badge on the 12 managed services, `not in running build` badge on the 26.
 Clicking a Tier A row navigates to that page; a Tier B row opens the "what it would take" panel.
 
 ### 4. Existing pages
@@ -152,7 +152,7 @@ a source for.
    `fetch` may work while 60 of its 80 operations answer 501. Each agent reports an
    operation → error-string table; those tables become the source of the per-service
    capability panel, and anything unimplemented will show the emulator's own words.
-3. **11 of 338 services are manageable today.** The scope rule is only satisfiable per-tier:
+3. **12 of 338 services are manageable today.** The scope rule is only satisfiable per-tier:
    Tier A depth, Tier B breadth, Tier C escape hatch.
 4. **`ec2` has 807 operations.** The Instances page uses four of them.
 5. Overview "Alerts" has no severity model yet — it is the error strings we already capture.

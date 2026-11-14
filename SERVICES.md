@@ -2,14 +2,14 @@
 
 Every service in the baked catalog — [assets/services.json](assets/services.json), 364 rows — and whether a page in this dashboard can manage it. This is the worklist for ROADMAP M1; regenerate it with `python3 tools/gen-services-doc.py > SERVICES.md` so it never disagrees with [src/views/catalog.rs:11](src/views/catalog.rs#L11).
 
-Measured 2026-11-13 against the emulator's 338-service build.
+Measured 2026-11-14 against the emulator's 338-service build.
 
 ## Where things stand
 
 | | count | operations | meaning |
 |---|---|---|---|
-| ✅ managed | 11 | 1,631 | a driver lists its resources and a page acts on them |
-| 🚧 served, no page | 327 | 10,825 | the emulator answers it; the focus panel says so and offers nothing |
+| ✅ managed | 12 | 1,642 | a driver lists its resources and a page acts on them |
+| 🚧 served, no page | 326 | 10,814 | the emulator answers it; the focus panel says so and offers nothing |
 | ❌ not in build | 26 | — | `registered: false`; the emulator refuses it |
 | **catalog total** | **364** | **12,456** | |
 
@@ -19,7 +19,7 @@ Status marks:
 - **🚧 served, no page** — `registered: true`, so `aws --endpoint-url` works against it, but `render_operations` returns nothing because `is_managed` is false ([src/views/detail.rs:1251](src/views/detail.rs#L1251)).
 - **❌ not in build** — `registered: false`. Not a dashboard gap; the emulator image does not contain that service.
 
-## The eleven that are managed
+## The 12 that are managed
 
 | service | page | driver | ops in service | create action | resource noun |
 |---|---|---|---|---|---|
@@ -34,8 +34,9 @@ Status marks:
 | `sns` | SNS | [src/aws/drivers/sns.rs](src/aws/drivers/sns.rs) | 42 | yes | topic |
 | `secretsmanager` | Secrets Manager | [src/aws/drivers/secrets_manager.rs](src/aws/drivers/secrets_manager.rs) | 23 | yes | secret |
 | `sqs` | SQS | [src/aws/services.rs](src/aws/services.rs) | 23 | yes | queue |
+| `sts` | STS | [src/aws/drivers/sts.rs](src/aws/drivers/sts.rs) | 11 | read-only | session |
 
-Every one of these is served by the emulator (`registered: true`), and together they hold 1,631 of the 12,456 operations the build answers — 13.1%.
+Every one of these is served by the emulator (`registered: true`), and together they hold 1,642 of the 12,456 operations the build answers — 13.2%.
 
 ## By category
 
@@ -109,12 +110,13 @@ Services are grouped by the taxonomy this project chose for the sidebar (`catego
 | ❌ | AWS Resilience Hub V2 | `resiliencehub` | restJson1 | 73 |
 | ❌ | Amazon AppConfig | `appconfig` | restJson1 | 56 |
 
-### Security & Identity — 47 services, 2 managed
+### Security & Identity — 47 services, 3 managed
 
 | status | service | signing name | protocol | ops |
 |---|---|---|---|---|
 | ✅ | AWS Identity and Access Management | `iam` | awsQuery | 180 |
 | ✅ | AWS Secrets Manager | `secretsmanager` | awsJson1_1 | 23 |
+| ✅ | AWS Security Token Service | `sts` | awsQuery | 11 |
 | 🚧 | Amazon Cognito Identity Provider | `cognito-idp` | awsJson1_1 | 132 |
 | 🚧 | AWS SecurityHub | `securityhub` | restJson1 | 123 |
 | 🚧 | Amazon GuardDuty | `guardduty` | restJson1 | 102 |
@@ -141,7 +143,6 @@ Services are grouped by the taxonomy this project chose for the sidebar (`catego
 | 🚧 | Amazon Cognito Sync | `cognito-sync` | restJson1 | 17 |
 | 🚧 | AWS Directory Service Data | `ds-data` | restJson1 | 17 |
 | 🚧 | AWS Sign-In Service | `signin` | restJson1 | 11 |
-| 🚧 | AWS Security Token Service | `sts` | awsQuery | 11 |
 | 🚧 | Amazon Security Lake | `securitylake` | restJson1 | 10 |
 | 🚧 | AWS Multi-party Approval | `mpa` | restJson1 | 8 |
 | 🚧 | IAM Roles Anywhere | `rolesanywhere` | restJson1 | 5 |
@@ -524,7 +525,7 @@ Two different orders, and choosing between them is the M1 decision.
 | 24 | 🚧 | AWS Well-Architected Tool | `wellarchitected` | 95 | Management & Governance |
 | 25 | 🚧 | Amazon WorkMail | `workmail` | 92 | End User Computing |
 
-The remaining 302 🚧 services are in the category tables above.
+The remaining 301 🚧 services are in the category tables above.
 
 **What a local emulator user reaches for.** ROADMAP M1 option A's curated set, where operation count is a tie-break rather than the sort key. The membership is the roadmap's judgement; the counts below come from the catalog, so they cannot go stale.
 
@@ -548,4 +549,4 @@ The remaining 302 🚧 services are in the category tables above.
 
 Each is one `aws-sdk-*` crate, one driver file, one `MANAGED` entry, and rows in [src/views/operations.rs](src/views/operations.rs); the pattern is proven eleven times over.
 
-Beyond the 25 above, 302 more 🚧 services are waiting in the category tables, and no order reaches them for free. A generic runner needs a crate per service anyway, because the AWS SDK is per-service — see ROADMAP Q1 for why that is an open decision, not a solved one.
+Beyond the 25 above, 301 more 🚧 services are waiting in the category tables, and no order reaches them for free. A generic runner needs a crate per service anyway, because the AWS SDK is per-service — see ROADMAP Q1 for why that is an open decision, not a solved one.

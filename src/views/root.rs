@@ -34,6 +34,7 @@ pub async fn fetch_service(
         "kinesis" => drivers::kinesis::fetch(config).await,
         "secretsmanager" => drivers::secrets_manager::fetch(config).await,
         "monitoring" => drivers::cloudwatch::fetch(config).await,
+        "sts" => drivers::sts::fetch(config).await,
         other => bail!("no driver is wired for {other}"),
     }
 }
@@ -883,6 +884,7 @@ mod tests {
     use super::*;
     use crate::app_state::Resource;
     use crate::aws::manage;
+    use anyhow::Context as _;
     use anyhow::ensure;
     use aws_config::SdkConfig;
 
@@ -1263,6 +1265,64 @@ mod tests {
             );
         }
 
+        {
+            let name = unique("sts", '-');
+            let _ = drivers::iam::delete_role(&config, &name).await;
+            // The account id, for a trust policy that names the caller: the IAM
+            // page's default trust policy names only the EC2 service principal,
+            // which no principal this dashboard signs with is.
+            let caller = aws_sdk_sts::Client::new(&config)
+                .get_caller_identity()
+                .send()
+                .await
+                .expect("GetCallerIdentity");
+            let caller_arn = caller.arn().expect("caller Arn").to_string();
+            let account = caller.account().expect("caller account").to_string();
+            let role_arn = format!("arn:aws:iam::{account}:role/{name}");
+            let trust = format!(
+                r#"{{"Version":"2012-10-17","Statement":[{{"Effect":"Allow","Principal":{{"AWS":"{caller_arn}"}},"Action":"sts:AssumeRole"}}]}}"#
+            );
+            page!(
+                &mut failures,
+                "sts",
+                async {
+                    aws_sdk_iam::Client::new(&config)
+                        .create_role()
+                        .role_name(&name)
+                        .assume_role_policy_document(&trust)
+                        .send()
+                        .await
+                        .context("CreateRole for the STS workbench")?;
+                    row(&config, "sts", &name).await?;
+                    let mint = drivers::sts::assume(&config, &role_arn, "dashboard").await?;
+                    ensure!(
+                        mint.identity_arn
+                            .contains(&format!("assumed-role/{name}/dashboard")),
+                        "sts page: assuming {name} verified as {}, not the assumed-role session",
+                        mint.identity_arn
+                    );
+                    Ok(())
+                },
+                async {
+                    drivers::iam::delete_role(&config, &name).await?;
+                    absent(&config, "sts", &name).await
+                }
+            );
+            record(
+                &mut failures,
+                "sts assume of an absent role",
+                expect_error(
+                    drivers::sts::assume(
+                        &config,
+                        &format!("arn:aws:iam::{account}:role/dash-wiring-absent"),
+                        "dashboard",
+                    )
+                    .await
+                    .map(|_| ()),
+                ),
+            );
+        }
+
         // The bail! arms, so an unwired page or verb is an error the user reads rather than
         // a green row that never happened.
         record(
@@ -1346,10 +1406,10 @@ mod tests {
                 catalog::resource_noun(key).is_some(),
                 "{label} offers a delete button but has no resource noun to name it"
             );
-            if key == "monitoring" {
+            if matches!(key, "monitoring" | "sts") {
                 assert!(
                     catalog::create_action(key).is_none(),
-                    "{label} shows a create button this build cannot back with a PutMetricAlarm dialog"
+                    "{label} shows a create button this build cannot back with a dialog"
                 );
             } else {
                 assert!(

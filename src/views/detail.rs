@@ -49,6 +49,9 @@ enum DetailAction {
     DeleteItem(String),
     DeleteMessage(String),
     CreateChild,
+    /// STS: assume the selected role and verify the minted credential. The mint is
+    /// recorded dashboard-side; STS has no list operation to answer for it.
+    AssumeRole,
     DeleteChild {
         name: String,
         detail: String,
@@ -784,6 +787,7 @@ fn dispatch(
         DetailAction::DeleteItem(item) => delete_item(state, cx, item),
         DetailAction::DeleteMessage(receipt) => delete_message(state, cx, receipt),
         DetailAction::CreateChild => create_child(state, cx),
+        DetailAction::AssumeRole => assume_selected(state, cx),
         DetailAction::Lifecycle(verb) => run_lifecycle(state, cx, verb),
         DetailAction::DeleteChild { name, detail } => delete_child(state, cx, name, detail),
         DetailAction::PublishDialog => open_dialog(state, window, cx, Dialog::Publish),
@@ -883,6 +887,41 @@ fn create_child(state: &Entity<AppState>, cx: &mut Context<RootView>) {
             ));
         },
         Reload::Detail,
+    );
+}
+
+/// Assume the selected role through the STS workbench. The minted credential is
+/// verified inside the driver's call; what lands here is the fact of the mint and
+/// the identity it speaks for. The secret is never stored: the reveal line says so.
+fn assume_selected(state: &Entity<AppState>, cx: &mut Context<RootView>) {
+    let Some((conn, _, _, arn)) = selected_row(state, cx) else {
+        return;
+    };
+    run(
+        state,
+        cx,
+        async move {
+            let c = conn.build_aws_config().await?;
+            crate::aws::drivers::sts::assume(
+                &c,
+                &arn,
+                crate::aws::drivers::sts::DEFAULT_SESSION_NAME,
+            )
+            .await
+        },
+        |s, mint| {
+            s.minted_sessions.push(mint.clone());
+            s.detail.revealed = Some(format!(
+                "Assumed role {} as session {}. Identity: {}. Credentials expire: {}. \
+                 Access key {} minted; its secret is not stored.",
+                mint.role_name,
+                mint.session_name,
+                mint.identity_arn,
+                mint.expires,
+                mint.access_key_id,
+            ));
+        },
+        Reload::None,
     );
 }
 
@@ -1498,6 +1537,14 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                 DetailAction::DeleteResource,
             ),
         ],
+        "sts" => vec![
+            b(
+                "Assume role",
+                theme::Kind::Primary,
+                DetailAction::AssumeRole,
+            ),
+            b("Refresh", theme::Kind::Ghost, DetailAction::RefreshDetail),
+        ],
         other => {
             let mut row = lifecycle_buttons(other)
                 .into_iter()
@@ -1732,6 +1779,41 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                                 .child(theme::cell(
                                     CHILD_COLUMNS[2].0,
                                     button_strip(delete.into_iter().collect()),
+                                ))
+                                .into_any()
+                        })),
+                );
+            }
+        }
+        "sts" => {
+            // The mints are what this dashboard made this run, held in state — the
+            // wire has no list of sessions to fetch. Only the selected role's.
+            let mints: Vec<_> = state
+                .minted_sessions
+                .iter()
+                .filter(|m| m.role_name == res.name)
+                .collect();
+            if mints.is_empty() {
+                card = card.child(theme::muted(
+                    "No sessions assumed from this role in this run",
+                ));
+            } else {
+                card = card.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .child(theme::table_head(CHILD_COLUMNS))
+                        .children(mints.iter().map(|m| {
+                            table_row(format!("mint-{}", m.access_key_id), false)
+                                .child(mono_cell(
+                                    CHILD_COLUMNS[0].0,
+                                    theme::TEXT_PRIMARY,
+                                    m.session_name.clone(),
+                                ))
+                                .child(mono_cell(
+                                    CHILD_COLUMNS[1].0,
+                                    theme::TEXT_SECONDARY,
+                                    format!("{} · expires {}", m.identity_arn, m.expires),
                                 ))
                                 .into_any()
                         })),

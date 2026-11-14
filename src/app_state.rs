@@ -142,6 +142,10 @@ pub struct AppState {
     pub instances: Vec<crate::aws::drivers::ec2::InstanceInfo>,
     pub instances_error: Option<String>,
     pub detail: DetailState,
+    /// The sessions this dashboard's STS workbench minted and verified this run.
+    /// STS has no list operation, so the wire cannot answer for them; what the
+    /// page shows is what this dashboard minted itself.
+    pub minted_sessions: Vec<crate::aws::drivers::sts::MintedSession>,
     pub dialog: Option<Dialog>,
     /// Which operation `Dialog::Operation` is collecting arguments for.
     pub dialog_op: Option<crate::views::operations::Operation>,
@@ -184,6 +188,7 @@ impl AppState {
             instances: Vec::new(),
             instances_error: None,
             detail: DetailState::default(),
+            minted_sessions: Vec::new(),
             dialog: None,
             dialog_op: None,
             action_busy: false,

@@ -595,6 +595,7 @@ dependencies = [
  "aws-sdk-secretsmanager",
  "aws-sdk-sns",
  "aws-sdk-sqs",
+ "aws-sdk-sts",
  "aws-smithy-types",
  "axum",
  "dirs 6.0.0",

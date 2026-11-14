@@ -35,6 +35,7 @@ DRIVER = {
     "kinesis": "src/aws/drivers/kinesis.rs",
     "secretsmanager": "src/aws/drivers/secrets_manager.rs",
     "monitoring": "src/aws/drivers/cloudwatch.rs",
+    "sts": "src/aws/drivers/sts.rs",
 }
 LABEL = {
     "s3": "S3 Buckets",
@@ -48,6 +49,7 @@ LABEL = {
     "kinesis": "Kinesis",
     "secretsmanager": "Secrets Manager",
     "monitoring": "CloudWatch",
+    "sts": "STS",
 }
 NOUN = {
     "s3": "bucket",
@@ -61,6 +63,7 @@ NOUN = {
     "kinesis": "stream",
     "secretsmanager": "secret",
     "monitoring": "alarm",
+    "sts": "session",
 }
 
 
@@ -92,7 +95,7 @@ w("Every service in the baked catalog — [assets/services.json](assets/services
   "worklist for ROADMAP M1; regenerate it with `python3 tools/gen-services-doc.py > SERVICES.md` "
   "so it never disagrees with [src/views/catalog.rs:11](src/views/catalog.rs#L11).")
 w("")
-w("Measured 2026-11-13 against the emulator's 338-service build.")
+w("Measured 2026-11-14 against the emulator's 338-service build.")
 w("")
 w("## Where things stand")
 w("")
@@ -114,7 +117,7 @@ w("- **🚧 served, no page** — `registered: true`, so `aws --endpoint-url` wo
 w("- **❌ not in build** — `registered: false`. Not a dashboard gap; the emulator image does not "
   "contain that service.")
 w("")
-w("## The eleven that are managed")
+w(f"## The {len(managed_rows)} that are managed")
 w("")
 w("| service | page | driver | ops in service | create action | resource noun |")
 w("|---|---|---|---|---|---|")

@@ -48,7 +48,10 @@ pub async fn fetch(config: &SdkConfig) -> Result<Vec<Resource>> {
         .collect())
 }
 
-pub async fn fetch_roles(config: &SdkConfig) -> Result<Vec<Resource>> {
+/// Every role the account holds, as IAM serves them. `fetch_roles` and the STS
+/// workbench map their own views onto this one list, so the pagination loop is
+/// written once.
+pub async fn list_roles(config: &SdkConfig) -> Result<Vec<aws_sdk_iam::types::Role>> {
     let client = Client::new(config);
     let mut roles = Vec::new();
     let mut marker: Option<String> = None;
@@ -58,22 +61,28 @@ pub async fn fetch_roles(config: &SdkConfig) -> Result<Vec<Resource>> {
             req = req.marker(m);
         }
         let resp = req.send().await.context("ListRoles")?;
-        for r in resp.roles() {
-            roles.push(Resource {
-                name: r.role_name().to_string(),
-                detail: format!(
-                    "created {} · path {}",
-                    date(Some(r.create_date())),
-                    r.path()
-                ),
-            });
-        }
+        roles.extend(resp.roles().iter().cloned());
         marker = resp.marker().map(str::to_string);
         if !resp.is_truncated() || marker.is_none() {
             break;
         }
     }
     Ok(roles)
+}
+
+pub async fn fetch_roles(config: &SdkConfig) -> Result<Vec<Resource>> {
+    let roles = list_roles(config).await?;
+    Ok(roles
+        .iter()
+        .map(|r| Resource {
+            name: r.role_name().to_string(),
+            detail: format!(
+                "created {} · path {}",
+                date(Some(r.create_date())),
+                r.path()
+            ),
+        })
+        .collect())
 }
 
 /// CreateUser raises EntityAlreadyExistsException on a name clash; the create path

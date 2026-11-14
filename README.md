@@ -128,7 +128,7 @@ Apache-2.0. See [LICENSE](LICENSE). The dependency licences that matter for this
 
 The scope rule for this project: **everything the emulator provides must be manageable from
 this dashboard.** A service with no driver is not a stub to ignore — it is a gap in ROADMAP M1.
-When adding a service, follow the pattern the eleven existing drivers set: one `aws-sdk-*`
+When adding a service, follow the pattern the twelve existing drivers set: one `aws-sdk-*`
 crate in `Cargo.toml`, one `src/aws/drivers/<name>.rs`, one `MANAGED` entry in
 [src/views/catalog.rs:11](src/views/catalog.rs#L11), and rows in
 [src/views/operations.rs](src/views/operations.rs). Do not hand-roll SigV4 or Smithy wire

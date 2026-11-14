@@ -131,6 +131,13 @@ fn fixture(app: &mut App) -> Entity<AppState> {
             "monitoring",
             vec![named("HighUtilisation", "ALARM"), named("QueueDepth", "OK")],
         ),
+        rows(
+            "sts",
+            vec![named(
+                "dash-deploy",
+                "arn:aws:iam::000000000000:role/dash-deploy",
+            )],
+        ),
     ]
     .into_iter()
     .map(|(key, items)| (key.to_string(), items))
@@ -581,6 +588,40 @@ fn resource_page_renders_every_table_and_the_reveal_banner() {
         s.dialog = Some(Dialog::Operation);
     });
     capture(&mut cx, &card_and_dialog, "resource-operations-dialog");
+}
+
+/// The STS workbench: a selected role, the Assume button, the minted sessions the
+/// dashboard itself recorded, and the one-time reveal of a mint. The mint row uses
+/// placeholder text — no real credential is put in state, a file, or a log.
+#[test]
+fn sts_page_renders_the_assume_button_and_minted_sessions() {
+    let mut cx = headless();
+
+    let empty = state_with(&mut cx, |s| {
+        s.selected_service = "sts".into();
+        s.selected_resource = Some("dash-deploy".into());
+    });
+    capture(&mut cx, &empty, "sts-workbench-empty");
+
+    let mints = state_with(&mut cx, |s| {
+        s.selected_service = "sts".into();
+        s.selected_resource = Some("dash-deploy".into());
+        s.minted_sessions = vec![crate::aws::drivers::sts::MintedSession {
+            role_name: "dash-deploy".into(),
+            session_name: "dashboard".into(),
+            identity_arn: "arn:aws:sts::000000000000:assumed-role/dash-deploy/dashboard".into(),
+            expires: "2026-11-14T12:00:00Z".into(),
+            access_key_id: "ASIAIOSFODNN7EXAMPLE".into(),
+        }];
+        s.detail.revealed = Some(
+            "Assumed role dash-deploy as session dashboard. Identity: \
+             arn:aws:sts::000000000000:assumed-role/dash-deploy/dashboard. Credentials \
+             expire: 2026-11-14T12:00:00Z. Access key ASIAIOSFODNN7EXAMPLE minted; its \
+             secret is not stored."
+                .into(),
+        );
+    });
+    capture(&mut cx, &mints, "sts-workbench-minted");
 }
 
 /// The resource pages against the running emulator: every Tier A page with its first live
