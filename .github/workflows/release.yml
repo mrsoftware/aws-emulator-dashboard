@@ -22,10 +22,10 @@ jobs:
             artifact: aws-emulator-dashboard-macos-arm64.app.zip
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: aws-emulator-dashboard-linux-x86_64
+            artifact: aws-emulator-dashboard-linux-x86_64.zip
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: aws-emulator-dashboard-windows-x86_64.exe
+            artifact: aws-emulator-dashboard-windows-x86_64.zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -90,23 +90,21 @@ jobs:
           </plist>
           PLIST
           zip -qry ${{ matrix.artifact }} "$APP"
-          cp target/${{ matrix.target }}/release/aws-emulator-dashboard aws-emulator-dashboard-macos-arm64
+          zip -qjry aws-emulator-dashboard-macos-arm64.zip target/${{ matrix.target }}/release/aws-emulator-dashboard
           shasum -a 256 ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
-          shasum -a 256 aws-emulator-dashboard-macos-arm64 > aws-emulator-dashboard-macos-arm64.sha256
+          shasum -a 256 aws-emulator-dashboard-macos-arm64.zip > aws-emulator-dashboard-macos-arm64.zip.sha256
 
       - name: Package (Linux)
-        # Raw binary, not an archive: the release asset loses the executable bit either way,
-        # so the archive would only add an unpack step.
         if: runner.os == 'Linux'
         run: |
-          cp target/${{ matrix.target }}/release/aws-emulator-dashboard ${{ matrix.artifact }}
+          zip -qjry ${{ matrix.artifact }} target/${{ matrix.target }}/release/aws-emulator-dashboard
           shasum -a 256 ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item target/${{ matrix.target }}/release/aws-emulator-dashboard.exe ${{ matrix.artifact }}
+          Compress-Archive -Path target/${{ matrix.target }}/release/aws-emulator-dashboard.exe -DestinationPath ${{ matrix.artifact }}
           $hash = (Get-FileHash ${{ matrix.artifact }} -Algorithm SHA256).Hash.ToLower()
           "$hash  ${{ matrix.artifact }}" | Out-File -Encoding ascii ${{ matrix.artifact }}.sha256
 
