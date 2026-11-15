@@ -29,6 +29,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The release-notes step walks HEAD^..HEAD for the previous tag; a
+          # depth-1 clone has neither the parent commit nor the older tags.
+          fetch-depth: 0
 
       - name: Reclaim runner disk space
         # Same 940-crate graph as CI; the Linux runner does not fit it without this.
