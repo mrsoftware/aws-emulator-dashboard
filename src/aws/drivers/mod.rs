@@ -6,4 +6,5 @@ pub mod kinesis;
 pub mod rds;
 pub mod secrets_manager;
 pub mod sns;
+pub mod ssm;
 pub mod sts;

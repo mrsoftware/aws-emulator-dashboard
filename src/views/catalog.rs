@@ -8,7 +8,7 @@ use gpui_kit::{AnyElement, Context, FontWeight, div, prelude::*, px, rgb};
 /// The key is the signing name the emulator routes on, which is what `selected_service` holds.
 /// The label comes from the driver that serves the page, so the sidebar cannot drift away
 /// from the name the driver reports for itself.
-pub const MANAGED: [(&str, &str); 12] = [
+pub const MANAGED: [(&str, &str); 13] = [
     ("s3", "S3"),
     ("dynamodb", "DynamoDB"),
     ("sqs", "SQS"),
@@ -24,6 +24,7 @@ pub const MANAGED: [(&str, &str); 12] = [
     ),
     ("monitoring", crate::aws::drivers::cloudwatch::LABEL),
     ("sts", crate::aws::drivers::sts::LABEL),
+    ("ssm", crate::aws::drivers::ssm::LABEL),
 ];
 
 /// The create button a page offers, with the dialog it opens. A page with no entry here is
@@ -40,6 +41,7 @@ pub fn create_action(key: &str) -> Option<(&'static str, Dialog)> {
         "logs" => Some(("New log group", Dialog::CreateNamed)),
         "kinesis" => Some(("New stream", Dialog::CreateNamed)),
         "secretsmanager" => Some(("New secret", Dialog::CreateSecret)),
+        "ssm" => Some(("New parameter", Dialog::CreateParameter)),
         _ => None,
     }
 }
@@ -59,6 +61,7 @@ pub fn resource_noun(key: &str) -> Option<&'static str> {
         "secretsmanager" => Some("secret"),
         "monitoring" => Some("alarm"),
         "sts" => Some("session"),
+        "ssm" => Some("parameter"),
         _ => None,
     }
 }

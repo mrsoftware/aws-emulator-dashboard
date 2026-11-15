@@ -52,6 +52,9 @@ enum DetailAction {
     /// STS: assume the selected role and verify the minted credential. The mint is
     /// recorded dashboard-side; STS has no list operation to answer for it.
     AssumeRole,
+    /// SSM: read the selected parameter's value, decrypted when it is a SecureString.
+    /// The value lands in the one-time reveal banner and is never stored.
+    RevealParameter,
     DeleteChild {
         name: String,
         detail: String,
@@ -211,10 +214,17 @@ pub async fn fetch_detail(state: &Entity<AppState>, cx: &mut AsyncApp) {
                     let items = manage::scan_items(&config, &name, 100).await?;
                     Ok(DetailData::Table { key_schema, items })
                 }
-                "iam" | "sns" | "logs" | "kinesis" | "secretsmanager" => Ok(DetailData::Children(
-                    crate::views::root::fetch_children(&service, &config, &name, &resource_detail)
+                "iam" | "sns" | "logs" | "kinesis" | "secretsmanager" | "ssm" => {
+                    Ok(DetailData::Children(
+                        crate::views::root::fetch_children(
+                            &service,
+                            &config,
+                            &name,
+                            &resource_detail,
+                        )
                         .await?,
-                )),
+                    ))
+                }
                 _ => Ok(DetailData::Empty),
             }
         })
@@ -712,6 +722,40 @@ pub fn confirm_dialog(state: &Entity<AppState>, cx: &mut Context<RootView>) {
                 Reload::Inventory,
             );
         }
+        Dialog::CreateParameter => {
+            if name.is_empty() {
+                set_error(state, cx, "Parameter name is required");
+                return;
+            }
+            if json.trim().is_empty() {
+                set_error(state, cx, "A parameter needs a value");
+                return;
+            }
+            let parameter_type = if protocol.trim().is_empty() {
+                crate::aws::drivers::ssm::DEFAULT_PARAMETER_TYPE.to_string()
+            } else {
+                protocol.trim().to_string()
+            };
+            run(
+                state,
+                cx,
+                async move {
+                    let c = conn.build_aws_config().await?;
+                    // PutParameter with no Overwrite refuses an existing name, but the
+                    // listing pre-check states it the way every other create does.
+                    if crate::aws::drivers::ssm::fetch(&c)
+                        .await?
+                        .iter()
+                        .any(|r| r.name == name)
+                    {
+                        anyhow::bail!("{name} already exists");
+                    }
+                    crate::aws::drivers::ssm::create(&c, &name, &json, &parameter_type).await
+                },
+                |s, _| s.dialog = None,
+                Reload::Inventory,
+            );
+        }
         Dialog::Publish => {
             let Some(arn) = resource_url else {
                 set_error(state, cx, "Select a topic first");
@@ -788,6 +832,7 @@ fn dispatch(
         DetailAction::DeleteMessage(receipt) => delete_message(state, cx, receipt),
         DetailAction::CreateChild => create_child(state, cx),
         DetailAction::AssumeRole => assume_selected(state, cx),
+        DetailAction::RevealParameter => reveal_parameter(state, cx),
         DetailAction::Lifecycle(verb) => run_lifecycle(state, cx, verb),
         DetailAction::DeleteChild { name, detail } => delete_child(state, cx, name, detail),
         DetailAction::PublishDialog => open_dialog(state, window, cx, Dialog::Publish),
@@ -920,6 +965,28 @@ fn assume_selected(state: &Entity<AppState>, cx: &mut Context<RootView>) {
                 mint.expires,
                 mint.access_key_id,
             ));
+        },
+        Reload::None,
+    );
+}
+
+/// Read the selected parameter's value through `GetParameter(WithDecryption=true)`.
+/// A SecureString decrypts only if the emulator's KMS gate permits the caller; its
+/// refusal is the error the user reads. The value is shown once and never stored.
+fn reveal_parameter(state: &Entity<AppState>, cx: &mut Context<RootView>) {
+    let Some((conn, _, name, _)) = selected_row(state, cx) else {
+        return;
+    };
+    run(
+        state,
+        cx,
+        async move {
+            let c = conn.build_aws_config().await?;
+            let (type_, value) = crate::aws::drivers::ssm::reveal(&c, &name).await?;
+            Ok((name, type_, value))
+        },
+        |s, (name, type_, value)| {
+            s.detail.revealed = Some(format!("Parameter {name}: ({type_}) {value}"));
         },
         Reload::None,
     );
@@ -1218,6 +1285,7 @@ pub fn render_dialog(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
         Dialog::CreateQueue => ("New SQS queue", "Create"),
         Dialog::CreateNamed => ("New resource", "Create"),
         Dialog::CreateSecret => ("New secret", "Create"),
+        Dialog::CreateParameter => ("New parameter", "Create"),
         Dialog::PutItem => ("Put item (plain JSON)", "Put"),
         Dialog::SendMessage => ("Send message", "Send"),
         Dialog::LaunchInstance => ("Launch instance", "Launch"),
@@ -1243,6 +1311,16 @@ pub fn render_dialog(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
             card = card
                 .child(field_row("Name", state.input_name.clone()))
                 .child(field_row("Value", state.input_json.clone()));
+        }
+        Dialog::CreateParameter => {
+            card = card
+                .child(field_row("Name", state.input_name.clone()))
+                .child(field_row("Value", state.input_json.clone()))
+                .child(field_row("Type", state.input_protocol.clone()))
+                .child(theme::muted(
+                    "Type is String, StringList or SecureString; empty means String. \
+                     A StringList's items are separated by commas.",
+                ));
         }
         Dialog::CreateTable => {
             card = card
@@ -1537,6 +1615,19 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                 DetailAction::DeleteResource,
             ),
         ],
+        "ssm" => vec![
+            b(
+                "Reveal value",
+                theme::Kind::Primary,
+                DetailAction::RevealParameter,
+            ),
+            b("Refresh", theme::Kind::Ghost, DetailAction::RefreshDetail),
+            b(
+                "Delete parameter",
+                theme::Kind::Danger,
+                DetailAction::DeleteResource,
+            ),
+        ],
         "sts" => vec![
             b(
                 "Assume role",
@@ -1732,7 +1823,7 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                 );
             }
         }
-        "iam" | "sns" | "logs" | "kinesis" | "secretsmanager" => {
+        "iam" | "sns" | "logs" | "kinesis" | "secretsmanager" | "ssm" => {
             if detail.loading {
                 card = card.child(theme::muted("Loading..."));
             } else if detail.children.is_empty() {
@@ -1741,6 +1832,7 @@ pub fn render_detail(state: &AppState, cx: &mut Context<RootView>) -> Option<Any
                     "sns" => "No subscriptions on this topic",
                     "logs" => "No log streams in this group",
                     "kinesis" => "No shards reported for this stream",
+                    "ssm" => "No versions recorded for this parameter",
                     _ => "No versions stored for this secret",
                 };
                 card = card.child(theme::muted(none));

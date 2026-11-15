@@ -36,6 +36,7 @@ DRIVER = {
     "secretsmanager": "src/aws/drivers/secrets_manager.rs",
     "monitoring": "src/aws/drivers/cloudwatch.rs",
     "sts": "src/aws/drivers/sts.rs",
+    "ssm": "src/aws/drivers/ssm.rs",
 }
 LABEL = {
     "s3": "S3 Buckets",
@@ -50,6 +51,7 @@ LABEL = {
     "secretsmanager": "Secrets Manager",
     "monitoring": "CloudWatch",
     "sts": "STS",
+    "ssm": "SSM Parameters",
 }
 NOUN = {
     "s3": "bucket",
@@ -64,6 +66,7 @@ NOUN = {
     "secretsmanager": "secret",
     "monitoring": "alarm",
     "sts": "session",
+    "ssm": "parameter",
 }
 
 
@@ -186,7 +189,7 @@ w("")
 w("| service | signing name | ops | category |")
 w("|---|---|---|---|")
 CURATED = [
-    "ssm", "config", "networkmanager", "workspaces", "cloudformation", "elasticache",
+    "config", "networkmanager", "workspaces", "cloudformation", "elasticache",
     "route53", "athena", "autoscaling", "cloudtrail", "codebuild", "ecr", "events", "kms",
     "elasticloadbalancing",
 ]

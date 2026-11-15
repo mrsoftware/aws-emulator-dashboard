@@ -138,6 +138,16 @@ fn fixture(app: &mut App) -> Entity<AppState> {
                 "arn:aws:iam::000000000000:role/dash-deploy",
             )],
         ),
+        rows(
+            "ssm",
+            vec![
+                named("/app/db/url", "String · modified 2026-11-14T09:00:00Z"),
+                named(
+                    "/app/db/password",
+                    "SecureString · modified 2026-11-14T09:01:00Z",
+                ),
+            ],
+        ),
     ]
     .into_iter()
     .map(|(key, items)| (key.to_string(), items))
@@ -622,6 +632,31 @@ fn sts_page_renders_the_assume_button_and_minted_sessions() {
         );
     });
     capture(&mut cx, &mints, "sts-workbench-minted");
+}
+
+/// The SSM Parameter Store page: a selected parameter, its version history as the
+/// children table, and the one-time reveal banner. The revealed value is placeholder
+/// text — no real parameter value is put in state, a file, or a log.
+#[test]
+fn ssm_page_renders_the_reveal_button_and_history() {
+    let mut cx = headless();
+
+    let empty = state_with(&mut cx, |s| {
+        s.selected_service = "ssm".into();
+        s.selected_resource = Some("/app/db/url".into());
+    });
+    capture(&mut cx, &empty, "ssm-parameters-empty");
+
+    let reveal = state_with(&mut cx, |s| {
+        s.selected_service = "ssm".into();
+        s.selected_resource = Some("/app/db/url".into());
+        s.detail.children = vec![
+            named("version 1", "String · modified 2026-11-14T09:00:00Z"),
+            named("version 2", "String · modified 2026-11-14T09:05:00Z"),
+        ];
+        s.detail.revealed = Some("Parameter /app/db/url: (String) [redacted placeholder]".into());
+    });
+    capture(&mut cx, &reveal, "ssm-parameters-reveal");
 }
 
 /// The resource pages against the running emulator: every Tier A page with its first live

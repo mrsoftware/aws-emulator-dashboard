@@ -35,6 +35,7 @@ pub async fn fetch_service(
         "secretsmanager" => drivers::secrets_manager::fetch(config).await,
         "monitoring" => drivers::cloudwatch::fetch(config).await,
         "sts" => drivers::sts::fetch(config).await,
+        "ssm" => drivers::ssm::fetch(config).await,
         other => bail!("no driver is wired for {other}"),
     }
 }
@@ -84,6 +85,7 @@ pub async fn delete_resource(
         "kinesis" => drivers::kinesis::delete_stream(config, name).await,
         "secretsmanager" => drivers::secrets_manager::delete_secret(config, name).await,
         "monitoring" => drivers::cloudwatch::delete_alarms(config, &[name.to_string()]).await,
+        "ssm" => drivers::ssm::delete(config, name).await,
         other => bail!("no delete is wired for {other}"),
     }
 }
@@ -130,6 +132,7 @@ pub async fn fetch_children(
                 detail: String::new(),
             })
             .collect()),
+        "ssm" => drivers::ssm::history(config, name).await,
         _ => Ok(Vec::new()),
     }
 }
@@ -1323,6 +1326,39 @@ mod tests {
             );
         }
 
+        {
+            let name = unique("ssm", '-');
+            let _ = drivers::ssm::delete(&config, &name).await;
+            page!(
+                &mut failures,
+                "ssm",
+                async {
+                    drivers::ssm::create(&config, &name, "wiring-value", "String").await?;
+                    row(&config, "ssm", &name).await?;
+                    let (type_, value) = drivers::ssm::reveal(&config, &name).await?;
+                    ensure!(
+                        type_ == "String" && value == "wiring-value",
+                        "ssm page: reveal read ({type_}, {value:?}), not the put value"
+                    );
+                    let versions = children(&config, "ssm", &name, "").await?;
+                    ensure!(
+                        versions.len() == 1 && versions[0].starts_with("version 1"),
+                        "ssm page: history listed {versions:?}, expected one version"
+                    );
+                    Ok(())
+                },
+                async {
+                    delete_resource("ssm", &config, &name, "").await?;
+                    absent(&config, "ssm", &name).await
+                }
+            );
+            record(
+                &mut failures,
+                "ssm reveal of an absent parameter",
+                expect_error(drivers::ssm::reveal(&config, &name).await.map(|_| ())),
+            );
+        }
+
         // The bail! arms, so an unwired page or verb is an error the user reads rather than
         // a green row that never happened.
         record(
@@ -1333,7 +1369,14 @@ mod tests {
                 "no driver is wired",
             ),
         );
-        for key in ["s3", "dynamodb", "sqs", "secretsmanager", "monitoring"] {
+        for key in [
+            "s3",
+            "dynamodb",
+            "sqs",
+            "secretsmanager",
+            "monitoring",
+            "ssm",
+        ] {
             record(
                 &mut failures,
                 &format!("{key} has no name-only create"),

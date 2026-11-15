@@ -8,8 +8,8 @@ Measured 2026-11-14 against the emulator's 338-service build.
 
 | | count | operations | meaning |
 |---|---|---|---|
-| ✅ managed | 12 | 1,642 | a driver lists its resources and a page acts on them |
-| 🚧 served, no page | 326 | 10,814 | the emulator answers it; the focus panel says so and offers nothing |
+| ✅ managed | 13 | 1,794 | a driver lists its resources and a page acts on them |
+| 🚧 served, no page | 325 | 10,662 | the emulator answers it; the focus panel says so and offers nothing |
 | ❌ not in build | 26 | — | `registered: false`; the emulator refuses it |
 | **catalog total** | **364** | **12,456** | |
 
@@ -19,13 +19,14 @@ Status marks:
 - **🚧 served, no page** — `registered: true`, so `aws --endpoint-url` works against it, but `render_operations` returns nothing because `is_managed` is false ([src/views/detail.rs:1251](src/views/detail.rs#L1251)).
 - **❌ not in build** — `registered: false`. Not a dashboard gap; the emulator image does not contain that service.
 
-## The 12 that are managed
+## The 13 that are managed
 
 | service | page | driver | ops in service | create action | resource noun |
 |---|---|---|---|---|---|
 | `ec2` | EC2 | [src/aws/drivers/ec2.rs](src/aws/drivers/ec2.rs) | 807 | yes | instance |
 | `iam` | IAM | [src/aws/drivers/iam.rs](src/aws/drivers/iam.rs) | 180 | yes | user |
 | `rds` | RDS | [src/aws/drivers/rds.rs](src/aws/drivers/rds.rs) | 168 | yes | DB instance |
+| `ssm` | SSM Parameters | [src/aws/drivers/ssm.rs](src/aws/drivers/ssm.rs) | 152 | yes | parameter |
 | `logs` | CloudWatch Logs | [src/aws/drivers/cloudwatch_logs.rs](src/aws/drivers/cloudwatch_logs.rs) | 118 | yes | log group |
 | `s3` | S3 Buckets | [src/aws/services.rs](src/aws/services.rs) | 112 | yes | bucket |
 | `dynamodb` | DynamoDB | [src/aws/services.rs](src/aws/services.rs) | 58 | yes | table |
@@ -36,19 +37,19 @@ Status marks:
 | `sqs` | SQS | [src/aws/services.rs](src/aws/services.rs) | 23 | yes | queue |
 | `sts` | STS | [src/aws/drivers/sts.rs](src/aws/drivers/sts.rs) | 11 | read-only | session |
 
-Every one of these is served by the emulator (`registered: true`), and together they hold 1,642 of the 12,456 operations the build answers — 13.2%.
+Every one of these is served by the emulator (`registered: true`), and together they hold 1,794 of the 12,456 operations the build answers — 14.4%.
 
 ## By category
 
 Services are grouped by the taxonomy this project chose for the sidebar (`category` in `assets/services.json`, our label, not AWS's). Within a group: managed first, then served-but-uncovered by operation count, then the services this emulator build does not contain. Operation count is a size measure, not a verdict on what to build next — see *Where to start*.
 
-### Management & Governance — 63 services, 2 managed
+### Management & Governance — 63 services, 3 managed
 
 | status | service | signing name | protocol | ops |
 |---|---|---|---|---|
+| ✅ | Amazon Simple Systems Manager (SSM) | `ssm` | awsJson1_1 | 152 |
 | ✅ | Amazon CloudWatch Logs | `logs` | awsJson1_1 | 118 |
 | ✅ | Amazon CloudWatch | `monitoring` | awsJson1_0 | 55 |
-| 🚧 | Amazon Simple Systems Manager (SSM) | `ssm` | awsJson1_1 | 152 |
 | 🚧 | AWS Config | `config` | awsJson1_1 | 102 |
 | 🚧 | AWS Well-Architected Tool | `wellarchitected` | restJson1 | 95 |
 | 🚧 | Amazon CloudDirectory | `clouddirectory` | restJson1 | 66 |
@@ -504,34 +505,33 @@ Two different orders, and choosing between them is the M1 decision.
 | 3 | 🚧 | AWS IoT | `iot` | 272 | IoT & Edge |
 | 4 | 🚧 | Amazon CloudFront | `cloudfront` | 167 | Networking |
 | 5 | 🚧 | Amazon Lightsail | `lightsail` | 162 | Compute & Containers |
-| 6 | 🚧 | Amazon Simple Systems Manager (SSM) | `ssm` | 152 | Management & Governance |
-| 7 | 🚧 | AWS IoT SiteWise | `iotsitewise` | 149 | Analytics |
-| 8 | 🚧 | Amazon Redshift | `redshift` | 145 | Analytics |
-| 9 | 🚧 | Amazon Cognito Identity Provider | `cognito-idp` | 132 | Security & Identity |
-| 10 | 🚧 | Amazon DataZone | `datazone` | 129 | Analytics |
-| 11 | 🚧 | AWS Elemental MediaLive | `medialive` | 123 | Media Services |
-| 12 | 🚧 | AWS SecurityHub | `securityhub` | 123 | Security & Identity |
-| 13 | 🚧 | Amazon Pinpoint | `mobiletargeting` | 122 | Customer Engagement |
-| 14 | 🚧 | Amazon GameLift | `gamelift` | 120 | Compute & Containers |
-| 15 | 🚧 | AWS Database Migration Service | `dms` | 119 | Database |
-| 16 | 🚧 | Amazon Simple Email Service | `ses` | 116 | Application Integration |
-| 17 | 🚧 | AWS Backup | `backup` | 115 | Storage |
-| 18 | 🚧 | Amazon Connect Customer Profiles | `profile` | 115 | Application Integration |
-| 19 | 🚧 | AWS IoT Wireless | `iotwireless` | 112 | IoT & Edge |
-| 20 | 🚧 | AWS Config | `config` | 102 | Management & Governance |
-| 21 | 🚧 | Amazon GuardDuty | `guardduty` | 102 | Security & Identity |
-| 22 | 🚧 | AWS Storage Gateway | `storagegateway` | 96 | Migration & Transfer |
-| 23 | 🚧 | AWS Network Manager | `networkmanager` | 95 | Networking |
-| 24 | 🚧 | AWS Well-Architected Tool | `wellarchitected` | 95 | Management & Governance |
-| 25 | 🚧 | Amazon WorkMail | `workmail` | 92 | End User Computing |
+| 6 | 🚧 | AWS IoT SiteWise | `iotsitewise` | 149 | Analytics |
+| 7 | 🚧 | Amazon Redshift | `redshift` | 145 | Analytics |
+| 8 | 🚧 | Amazon Cognito Identity Provider | `cognito-idp` | 132 | Security & Identity |
+| 9 | 🚧 | Amazon DataZone | `datazone` | 129 | Analytics |
+| 10 | 🚧 | AWS Elemental MediaLive | `medialive` | 123 | Media Services |
+| 11 | 🚧 | AWS SecurityHub | `securityhub` | 123 | Security & Identity |
+| 12 | 🚧 | Amazon Pinpoint | `mobiletargeting` | 122 | Customer Engagement |
+| 13 | 🚧 | Amazon GameLift | `gamelift` | 120 | Compute & Containers |
+| 14 | 🚧 | AWS Database Migration Service | `dms` | 119 | Database |
+| 15 | 🚧 | Amazon Simple Email Service | `ses` | 116 | Application Integration |
+| 16 | 🚧 | AWS Backup | `backup` | 115 | Storage |
+| 17 | 🚧 | Amazon Connect Customer Profiles | `profile` | 115 | Application Integration |
+| 18 | 🚧 | AWS IoT Wireless | `iotwireless` | 112 | IoT & Edge |
+| 19 | 🚧 | AWS Config | `config` | 102 | Management & Governance |
+| 20 | 🚧 | Amazon GuardDuty | `guardduty` | 102 | Security & Identity |
+| 21 | 🚧 | AWS Storage Gateway | `storagegateway` | 96 | Migration & Transfer |
+| 22 | 🚧 | AWS Network Manager | `networkmanager` | 95 | Networking |
+| 23 | 🚧 | AWS Well-Architected Tool | `wellarchitected` | 95 | Management & Governance |
+| 24 | 🚧 | Amazon WorkMail | `workmail` | 92 | End User Computing |
+| 25 | 🚧 | Amazon WorkSpaces | `workspaces` | 91 | End User Computing |
 
-The remaining 301 🚧 services are in the category tables above.
+The remaining 300 🚧 services are in the category tables above.
 
 **What a local emulator user reaches for.** ROADMAP M1 option A's curated set, where operation count is a tie-break rather than the sort key. The membership is the roadmap's judgement; the counts below come from the catalog, so they cannot go stale.
 
 | service | signing name | ops | category |
 |---|---|---|---|
-| Amazon Simple Systems Manager (SSM) | `ssm` | 152 | Management & Governance |
 | AWS Config | `config` | 102 | Management & Governance |
 | AWS Network Manager | `networkmanager` | 95 | Networking |
 | Amazon WorkSpaces | `workspaces` | 91 | End User Computing |
@@ -549,4 +549,4 @@ The remaining 301 🚧 services are in the category tables above.
 
 Each is one `aws-sdk-*` crate, one driver file, one `MANAGED` entry, and rows in [src/views/operations.rs](src/views/operations.rs); the pattern is proven eleven times over.
 
-Beyond the 25 above, 301 more 🚧 services are waiting in the category tables, and no order reaches them for free. A generic runner needs a crate per service anyway, because the AWS SDK is per-service — see ROADMAP Q1 for why that is an open decision, not a solved one.
+Beyond the 25 above, 300 more 🚧 services are waiting in the category tables, and no order reaches them for free. A generic runner needs a crate per service anyway, because the AWS SDK is per-service — see ROADMAP Q1 for why that is an open decision, not a solved one.

@@ -108,6 +108,8 @@ pub enum Dialog {
     CreateNamed,
     /// A secret is named *and* valued; the emulator rejects a create with no value.
     CreateSecret,
+    /// A parameter is named, valued and typed; the type defaults to String.
+    CreateParameter,
     PutItem,
     SendMessage,
     LaunchInstance,
